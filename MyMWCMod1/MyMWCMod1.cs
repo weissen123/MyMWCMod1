@@ -100,10 +100,10 @@ namespace MyMWCMod1
             _oilLevel.ApplyReduction(WearReductionFactor,    reduceOnIncrease: false);
             _wearBulbL.ApplyReduction(WearReductionFactor,   reduceOnIncrease: false);
             _wearBulbR.ApplyReduction(WearReductionFactor,   reduceOnIncrease: false);
-            _sparkPlug1.ApplyReduction(WearReductionFactor,  reduceOnIncrease: true);
-            _sparkPlug2.ApplyReduction(WearReductionFactor,  reduceOnIncrease: true);
-            _sparkPlug3.ApplyReduction(WearReductionFactor,  reduceOnIncrease: true);
-            _sparkPlug4.ApplyReduction(WearReductionFactor,  reduceOnIncrease: true);
+            _sparkPlug1.ApplyReduction(WearReductionFactor,  reduceOnIncrease: false);
+            _sparkPlug2.ApplyReduction(WearReductionFactor,  reduceOnIncrease: false);
+            _sparkPlug3.ApplyReduction(WearReductionFactor,  reduceOnIncrease: false);
+            _sparkPlug4.ApplyReduction(WearReductionFactor,  reduceOnIncrease: false);
         }
 
         private void SetupDrivetrain()
