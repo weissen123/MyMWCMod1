@@ -1,45 +1,74 @@
-﻿using HutongGames.PlayMaker;
+using HutongGames.PlayMaker;
 using MSCLoader;
-using System;
 using System.Linq;
-using System.Net.Sockets;
 using UnityEngine;
 
 namespace MyMWCMod1
 {
     public class MyMWCMod1 : Mod
     {
-        public override string ID => "MyMWCMod1"; // Your (unique) mod ID 
+        public override string ID => "MyMWCMod1"; // Your (unique) mod ID
         public override string Name => "MyMWCMod1"; // Your mod name
         public override string Author => "JWE"; // Name of the Author (your name)
         public override string Version => "1.0"; // Version
-        public override string Description => ""; // Short description of your mod 
+        public override string Description => ""; // Short description of your mod
         public override Game SupportedGames => Game.MyWinterCar;
+
+        // Game object paths
+        private const string Path_Taxi      = "JOBS/TAXIJOB/MACHTWAGEN";
+        private const string Path_Oilpan    = "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Oilpan/Oilpan(VINXX)";
+        private const string Path_OilFilter = "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Oilfilter";
+        private const string Path_BulbLeft  = "CORRIS/Assemblies/VINP_HeadlightLeft/Head Light Assembly(VINXX)";
+        private const string Path_BulbRight = "CORRIS/Assemblies/VINP_HeadlightRight/Head Light Assembly(VINXX)";
+
+        // FSM names and variable names
+        private const string FsmName_Data    = "Data";
+        private const string FsmVar_OilLevel = "OilLevel";
+        private const string FsmVar_Dirt     = "Dirt";
+        private const string FsmVar_WearBulb = "WearBulb";
+
+        // Wear reduction factor applied each FixedUpdate tick (1% of delta survives)
+        private const float WearReductionFactor = 0.01f;
+
+        private class ComponentMonitor
+        {
+            public FsmFloat Value;
+            public float    Previous;
+
+            // reduceOnIncrease=true  → slow down increases (e.g. dirt accumulation)
+            // reduceOnIncrease=false → slow down decreases (e.g. oil level, bulb wear)
+            public void ApplyReduction(float factor, bool reduceOnIncrease)
+            {
+                if (Value == null) return;
+
+                bool conditionMet = reduceOnIncrease
+                    ? Value.Value > Previous
+                    : Value.Value < Previous;
+
+                if (conditionMet)
+                    Value.Value = Previous + (Value.Value - Previous) * factor;
+
+                Previous = Value.Value;
+            }
+        }
+
+        private static GameObject       machtwg;
+        private static Drivetrain       drivetrain;
+        private static ComponentMonitor _oilFiltDirt = new ComponentMonitor();
+        private static ComponentMonitor _oilLevel    = new ComponentMonitor();
+        private static ComponentMonitor _wearBulbL   = new ComponentMonitor();
+        private static ComponentMonitor _wearBulbR   = new ComponentMonitor();
+
+        private SettingsCheckBox autoTransmission;
+        private SettingsSlider   shiftUpRPMSetting;
+        private SettingsSlider   shiftDownRPMSetting;
 
         public override void ModSetup()
         {
             SetupFunction(Setup.OnLoad, Mod_OnLoad);
-            SetupFunction(Setup.FixedUpdate, Mod_FixedUpdate); 
+            SetupFunction(Setup.FixedUpdate, Mod_FixedUpdate);
             SetupFunction(Setup.ModSettings, Mod_Settings);
-            //SetupFunction(Setup );
         }
-
-        private static GameObject machtwg;
-        private static Drivetrain drivetrain;
-
-        private static FsmFloat corrisOilFiltDirt;
-        private static float corrisOilFiltDirt_last;
-        private static FsmFloat corrisOilLevel;
-        private static float corrisOilLevel_last;
-        
-        private static FsmFloat corrisWearBulbL;
-        private static float corrisWearBulbL_last;
-        private static FsmFloat corrisWearBulbR;
-        private static float corrisWearBulbR_last;
-
-        public SettingsCheckBox autoTransmission;
-        public SettingsSlider   shiftUpRPMSetting;
-        public SettingsSlider   shiftDownRPMSetting;
 
         private void Mod_Settings()
         {
@@ -48,47 +77,24 @@ namespace MyMWCMod1
             shiftDownRPMSetting = Settings.AddSlider("shiftDownRPM", "Shift Down RPM", 500f, 7000f, 1700f);
         }
 
-        private string[] EnumToStringList<T>() where T : struct
-        {
-            return Enum.GetNames(typeof(T));
-        }
-
-        private T StringToEnum<T>(string value) where T : struct
-        {
-            return (T)Enum.Parse(typeof(T), value);
-        }
-
-        private FsmFloat findFsmFloat(string ObjectName, string FsmName, string FsmFloatName, string FsmObjIdent)
-        {
-            GameObject objGameObject;
-            FsmFloat   retObjFsmFloat;
-
-            objGameObject = GameObject.Find(ObjectName);
-            if (objGameObject == null)
-            {
-                ModConsole.Error($"FAILED TO FIND {FsmObjIdent}!!!");
-            }
-            else
-            {
-                PlayMakerFSM objFsm;
-                objFsm = objGameObject.GetComponentsInChildren<PlayMakerFSM>().ToList()
-                    .Find((PlayMakerFSM fsm) => fsm.FsmName == FsmName);
-
-                if (objFsm != null)
-                {
-                    retObjFsmFloat = objFsm.FsmVariables.FindFsmFloat(FsmFloatName);
-                    ModConsole.Log($"{FsmObjIdent} {retObjFsmFloat.Value}");
-                    return retObjFsmFloat;
-                }
-            }
-            return null;
-        }
-
         private void Mod_OnLoad()
         {
-            // Called once, when mod is loading after game is fully loaded
-            machtwg = GameObject.Find("JOBS/TAXIJOB/MACHTWAGEN");
+            SetupDrivetrain();
+            SetupOilMonitors();
+            SetupHeadlightMonitors();
+        }
 
+        private void Mod_FixedUpdate()
+        {
+            _oilFiltDirt.ApplyReduction(WearReductionFactor, reduceOnIncrease: true);
+            _oilLevel.ApplyReduction(WearReductionFactor,    reduceOnIncrease: false);
+            _wearBulbL.ApplyReduction(WearReductionFactor,   reduceOnIncrease: false);
+            _wearBulbR.ApplyReduction(WearReductionFactor,   reduceOnIncrease: false);
+        }
+
+        private void SetupDrivetrain()
+        {
+            machtwg = GameObject.Find(Path_Taxi);
             if (machtwg == null)
             {
                 ModConsole.Error("FAILED TO FIND Taxi!!!");
@@ -102,113 +108,62 @@ namespace MyMWCMod1
                 drivetrain.shiftUpRPM   = (float)shiftUpRPMSetting.GetValue();
                 drivetrain.shiftDownRPM = (float)shiftDownRPMSetting.GetValue();
             }
-
-            corrisOilLevel = findFsmFloat("CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Oilpan/Oilpan(VINXX)",
-                                          "Data", "OilLevel", "OilLevel");
-            if (corrisOilLevel != null)
-                corrisOilLevel_last = corrisOilLevel.Value;
-
-            GameObject corrisOilFilt;
-            corrisOilFilt = GameObject.Find("CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Oilfilter");
-            if (corrisOilFilt == null)
-            {
-                ModConsole.Error("FAILED TO FIND OilFilter!!!");
-            } else
-            {
-                PlayMakerFSM corrisOilFiltData;
-                corrisOilFiltData = corrisOilFilt.GetComponentsInChildren<PlayMakerFSM>().ToList()
-                    .Find((PlayMakerFSM fsm) => fsm.FsmName == "Data");
-
-                if (corrisOilFiltData != null)
-                {
-                    corrisOilFiltDirt = corrisOilFiltData.FsmVariables.FindFsmFloat("Dirt");
-                    corrisOilFiltDirt_last = corrisOilFiltDirt.Value;
-                    ModConsole.Log($"OilFiltDirt {corrisOilFiltDirt_last}");
-                }
-                
-            }
-
-            GameObject corrisHeadlightLeft;
-            corrisHeadlightLeft = GameObject.Find("CORRIS/Assemblies/VINP_HeadlightLeft/Head Light Assembly(VINXX)");
-            if (corrisHeadlightLeft == null)
-            {
-                ModConsole.Error("FAILED TO FIND Bulb Left!!!");
-            }
-            else
-            {
-                PlayMakerFSM corrisHeadlightData;
-                corrisHeadlightData = corrisHeadlightLeft.GetComponentsInChildren<PlayMakerFSM>().ToList()
-                    .Find((PlayMakerFSM fsm) => fsm.FsmName == "Data");
-
-                if (corrisHeadlightData != null)
-                {
-                    corrisWearBulbL = corrisHeadlightData.FsmVariables.FindFsmFloat("WearBulb");
-                    corrisWearBulbL_last = corrisWearBulbL.Value;
-                    ModConsole.Log($"WearBulbLeft {corrisWearBulbL_last}");
-                }
-
-            }
-
-            GameObject corrisHeadlightRight;
-            corrisHeadlightRight = GameObject.Find("CORRIS/Assemblies/VINP_HeadlightRight/Head Light Assembly(VINXX)");
-            if (corrisHeadlightRight == null)
-            {
-                ModConsole.Error("FAILED TO FIND Bulb Right!!!");
-            }
-            else
-            {
-                PlayMakerFSM corrisHeadlightData;
-                corrisHeadlightData = corrisHeadlightRight.GetComponentsInChildren<PlayMakerFSM>().ToList()
-                    .Find((PlayMakerFSM fsm) => fsm.FsmName == "Data");
-
-                if (corrisHeadlightData != null)
-                {
-                    corrisWearBulbR = corrisHeadlightData.FsmVariables.FindFsmFloat("WearBulb");
-                    corrisWearBulbR_last = corrisWearBulbR.Value;
-                    ModConsole.Log($"WearBulbRight {corrisWearBulbR_last}");
-                }
-
-            }
-
         }
 
-        private void Mod_FixedUpdate()
+        private void SetupOilMonitors()
         {
-            if (corrisOilFiltDirt != null)
+            FsmFloat oilLevel = FindFsmFloat(Path_Oilpan, FsmName_Data, FsmVar_OilLevel, "OilLevel");
+            if (oilLevel != null)
             {
-                if (corrisOilFiltDirt.Value > corrisOilFiltDirt_last)
-                {
-                    corrisOilFiltDirt.Value = corrisOilFiltDirt_last + (corrisOilFiltDirt.Value - corrisOilFiltDirt_last) * 0.01f;
-                }
-                corrisOilFiltDirt_last = corrisOilFiltDirt.Value;
+                _oilLevel.Value    = oilLevel;
+                _oilLevel.Previous = oilLevel.Value;
             }
 
-            if (corrisOilLevel != null)
+            FsmFloat oilFiltDirt = FindFsmFloat(Path_OilFilter, FsmName_Data, FsmVar_Dirt, "OilFiltDirt");
+            if (oilFiltDirt != null)
             {
-                if (corrisOilLevel.Value < corrisOilLevel_last)
-                {
-                    corrisOilLevel.Value = corrisOilLevel_last + (corrisOilLevel.Value - corrisOilLevel_last) * 0.01f;
-                }
-                corrisOilLevel_last = corrisOilLevel.Value;
+                _oilFiltDirt.Value    = oilFiltDirt;
+                _oilFiltDirt.Previous = oilFiltDirt.Value;
+            }
+        }
+
+        private void SetupHeadlightMonitors()
+        {
+            FsmFloat bulbL = FindFsmFloat(Path_BulbLeft, FsmName_Data, FsmVar_WearBulb, "WearBulbLeft");
+            if (bulbL != null)
+            {
+                _wearBulbL.Value    = bulbL;
+                _wearBulbL.Previous = bulbL.Value;
             }
 
-            if (corrisWearBulbL != null)
+            FsmFloat bulbR = FindFsmFloat(Path_BulbRight, FsmName_Data, FsmVar_WearBulb, "WearBulbRight");
+            if (bulbR != null)
             {
-                if (corrisWearBulbL.Value < corrisWearBulbL_last)
-                {
-                    corrisWearBulbL.Value = corrisWearBulbL_last + (corrisWearBulbL.Value - corrisWearBulbL_last) * 0.01f;
-                }
-                corrisWearBulbL_last = corrisWearBulbL.Value;
+                _wearBulbR.Value    = bulbR;
+                _wearBulbR.Previous = bulbR.Value;
+            }
+        }
+
+        private FsmFloat FindFsmFloat(string objectName, string fsmName, string floatName, string logLabel)
+        {
+            GameObject obj = GameObject.Find(objectName);
+            if (obj == null)
+            {
+                ModConsole.Error($"FAILED TO FIND {logLabel}!!!");
+                return null;
             }
 
-            if (corrisWearBulbR != null)
+            PlayMakerFSM fsm = obj.GetComponentsInChildren<PlayMakerFSM>().ToList()
+                .Find((PlayMakerFSM f) => f.FsmName == fsmName);
+
+            if (fsm != null)
             {
-                if (corrisWearBulbR.Value < corrisWearBulbR_last)
-                {
-                    corrisWearBulbR.Value = corrisWearBulbR_last + (corrisWearBulbR.Value - corrisWearBulbR_last) * 0.01f;
-                }
-                corrisWearBulbR_last = corrisWearBulbR.Value;
+                FsmFloat result = fsm.FsmVariables.FindFsmFloat(floatName);
+                ModConsole.Log($"{logLabel} {result.Value}");
+                return result;
             }
+
+            return null;
         }
     }
 }
