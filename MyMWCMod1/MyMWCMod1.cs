@@ -20,7 +20,8 @@ namespace MyMWCMod1
         private const string Path_OilFilter = "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Oilfilter";
         private const string Path_BulbLeft   = "CORRIS/Assemblies/VINP_HeadlightLeft/Head Light Assembly(VINXX)";
         private const string Path_BulbRight  = "CORRIS/Assemblies/VINP_HeadlightRight/Head Light Assembly(VINXX)";
-        private const string Path_Alternator = "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Alternator";
+        private const string Path_Alternator  = "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Alternator";
+        private const string Path_BrakeMaster = "CORRIS/Assemblies/VINP_BrakeMasterCylinder/Brake Master Cylinder(VINXX)";
         private const string Path_SparkPlug1 = "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug1";
         private const string Path_SparkPlug2 = "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug2";
         private const string Path_SparkPlug3 = "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug3";
@@ -31,7 +32,8 @@ namespace MyMWCMod1
         private const string FsmVar_OilLevel = "OilLevel";
         private const string FsmVar_Dirt     = "Dirt";
         private const string FsmVar_WearBulb = "WearBulb";
-        private const string FsmVar_Wear     = "Wear";
+        private const string FsmVar_Wear        = "Wear";
+        private const string FsmVar_BrakeFluidF = "BrakeFluidF";
 
         // Wear reduction factor applied each FixedUpdate tick (1% of delta survives)
         private const float WearReductionFactor = 0.01f;
@@ -65,6 +67,7 @@ namespace MyMWCMod1
         private static ComponentMonitor _wearBulbL    = new ComponentMonitor();
         private static ComponentMonitor _wearBulbR    = new ComponentMonitor();
         private static ComponentMonitor _alternator   = new ComponentMonitor();
+        private static ComponentMonitor _brakeFluidF  = new ComponentMonitor();
         private static ComponentMonitor _sparkPlug1   = new ComponentMonitor();
         private static ComponentMonitor _sparkPlug2   = new ComponentMonitor();
         private static ComponentMonitor _sparkPlug3   = new ComponentMonitor();
@@ -95,6 +98,7 @@ namespace MyMWCMod1
             SetupHeadlightMonitors();
             SetupSparkPlugMonitors();
             SetupAlternatorMonitor();
+            SetupBrakeMasterMonitor();
         }
 
         private void Mod_FixedUpdate()
@@ -108,6 +112,7 @@ namespace MyMWCMod1
             _sparkPlug3.ApplyReduction(WearReductionFactor,  WearDirection.Decreases);
             _sparkPlug4.ApplyReduction(WearReductionFactor,  WearDirection.Decreases);
             _alternator.ApplyReduction(WearReductionFactor,  WearDirection.Decreases);
+            _brakeFluidF.ApplyReduction(WearReductionFactor, WearDirection.Decreases);
         }
 
         private void SetupDrivetrain()
@@ -177,6 +182,16 @@ namespace MyMWCMod1
             {
                 monitor.Value    = wear;
                 monitor.Previous = wear.Value;
+            }
+        }
+
+        private void SetupBrakeMasterMonitor()
+        {
+            FsmFloat fluid = FindFsmFloat(Path_BrakeMaster, FsmName_Data, FsmVar_BrakeFluidF, "BrakeFluidF");
+            if (fluid != null)
+            {
+                _brakeFluidF.Value    = fluid;
+                _brakeFluidF.Previous = fluid.Value;
             }
         }
 
