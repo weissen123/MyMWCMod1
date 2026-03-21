@@ -35,18 +35,18 @@ namespace MyMWCMod1
         // Wear reduction factor applied each FixedUpdate tick (1% of delta survives)
         private const float WearReductionFactor = 0.01f;
 
+        private enum WearDirection { Increases, Decreases }
+
         private class ComponentMonitor
         {
             public FsmFloat Value;
             public float    Previous;
 
-            // reduceOnIncrease=true  → slow down increases (e.g. dirt accumulation)
-            // reduceOnIncrease=false → slow down decreases (e.g. oil level, bulb wear)
-            public void ApplyReduction(float factor, bool reduceOnIncrease)
+            public void ApplyReduction(float factor, WearDirection direction)
             {
                 if (Value == null) return;
 
-                bool conditionMet = reduceOnIncrease
+                bool conditionMet = direction == WearDirection.Increases
                     ? Value.Value > Previous
                     : Value.Value < Previous;
 
@@ -96,14 +96,14 @@ namespace MyMWCMod1
 
         private void Mod_FixedUpdate()
         {
-            _oilFiltDirt.ApplyReduction(WearReductionFactor, reduceOnIncrease: true);
-            _oilLevel.ApplyReduction(WearReductionFactor,    reduceOnIncrease: false);
-            _wearBulbL.ApplyReduction(WearReductionFactor,   reduceOnIncrease: false);
-            _wearBulbR.ApplyReduction(WearReductionFactor,   reduceOnIncrease: false);
-            _sparkPlug1.ApplyReduction(WearReductionFactor,  reduceOnIncrease: false);
-            _sparkPlug2.ApplyReduction(WearReductionFactor,  reduceOnIncrease: false);
-            _sparkPlug3.ApplyReduction(WearReductionFactor,  reduceOnIncrease: false);
-            _sparkPlug4.ApplyReduction(WearReductionFactor,  reduceOnIncrease: false);
+            _oilFiltDirt.ApplyReduction(WearReductionFactor, WearDirection.Increases);
+            _oilLevel.ApplyReduction(WearReductionFactor,    WearDirection.Decreases);
+            _wearBulbL.ApplyReduction(WearReductionFactor,   WearDirection.Decreases);
+            _wearBulbR.ApplyReduction(WearReductionFactor,   WearDirection.Decreases);
+            _sparkPlug1.ApplyReduction(WearReductionFactor,  WearDirection.Decreases);
+            _sparkPlug2.ApplyReduction(WearReductionFactor,  WearDirection.Decreases);
+            _sparkPlug3.ApplyReduction(WearReductionFactor,  WearDirection.Decreases);
+            _sparkPlug4.ApplyReduction(WearReductionFactor,  WearDirection.Decreases);
         }
 
         private void SetupDrivetrain()
