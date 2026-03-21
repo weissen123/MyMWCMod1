@@ -18,14 +18,19 @@ namespace MyMWCMod1
         private const string Path_Taxi      = "JOBS/TAXIJOB/MACHTWAGEN";
         private const string Path_Oilpan    = "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Oilpan/Oilpan(VINXX)";
         private const string Path_OilFilter = "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Oilfilter";
-        private const string Path_BulbLeft  = "CORRIS/Assemblies/VINP_HeadlightLeft/Head Light Assembly(VINXX)";
-        private const string Path_BulbRight = "CORRIS/Assemblies/VINP_HeadlightRight/Head Light Assembly(VINXX)";
+        private const string Path_BulbLeft   = "CORRIS/Assemblies/VINP_HeadlightLeft/Head Light Assembly(VINXX)";
+        private const string Path_BulbRight  = "CORRIS/Assemblies/VINP_HeadlightRight/Head Light Assembly(VINXX)";
+        private const string Path_SparkPlug1 = "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug1";
+        private const string Path_SparkPlug2 = "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug2";
+        private const string Path_SparkPlug3 = "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug3";
+        private const string Path_SparkPlug4 = "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug4";
 
         // FSM names and variable names
         private const string FsmName_Data    = "Data";
         private const string FsmVar_OilLevel = "OilLevel";
         private const string FsmVar_Dirt     = "Dirt";
         private const string FsmVar_WearBulb = "WearBulb";
+        private const string FsmVar_Wear     = "Wear";
 
         // Wear reduction factor applied each FixedUpdate tick (1% of delta survives)
         private const float WearReductionFactor = 0.01f;
@@ -56,8 +61,12 @@ namespace MyMWCMod1
         private static Drivetrain       drivetrain;
         private static ComponentMonitor _oilFiltDirt = new ComponentMonitor();
         private static ComponentMonitor _oilLevel    = new ComponentMonitor();
-        private static ComponentMonitor _wearBulbL   = new ComponentMonitor();
-        private static ComponentMonitor _wearBulbR   = new ComponentMonitor();
+        private static ComponentMonitor _wearBulbL    = new ComponentMonitor();
+        private static ComponentMonitor _wearBulbR    = new ComponentMonitor();
+        private static ComponentMonitor _sparkPlug1   = new ComponentMonitor();
+        private static ComponentMonitor _sparkPlug2   = new ComponentMonitor();
+        private static ComponentMonitor _sparkPlug3   = new ComponentMonitor();
+        private static ComponentMonitor _sparkPlug4   = new ComponentMonitor();
 
         private SettingsCheckBox autoTransmission;
         private SettingsSlider   shiftUpRPMSetting;
@@ -82,6 +91,7 @@ namespace MyMWCMod1
             SetupDrivetrain();
             SetupOilMonitors();
             SetupHeadlightMonitors();
+            SetupSparkPlugMonitors();
         }
 
         private void Mod_FixedUpdate()
@@ -90,6 +100,10 @@ namespace MyMWCMod1
             _oilLevel.ApplyReduction(WearReductionFactor,    reduceOnIncrease: false);
             _wearBulbL.ApplyReduction(WearReductionFactor,   reduceOnIncrease: false);
             _wearBulbR.ApplyReduction(WearReductionFactor,   reduceOnIncrease: false);
+            _sparkPlug1.ApplyReduction(WearReductionFactor,  reduceOnIncrease: true);
+            _sparkPlug2.ApplyReduction(WearReductionFactor,  reduceOnIncrease: true);
+            _sparkPlug3.ApplyReduction(WearReductionFactor,  reduceOnIncrease: true);
+            _sparkPlug4.ApplyReduction(WearReductionFactor,  reduceOnIncrease: true);
         }
 
         private void SetupDrivetrain()
@@ -141,6 +155,24 @@ namespace MyMWCMod1
             {
                 _wearBulbR.Value    = bulbR;
                 _wearBulbR.Previous = bulbR.Value;
+            }
+        }
+
+        private void SetupSparkPlugMonitors()
+        {
+            SetupSparkPlug(Path_SparkPlug1, "SparkPlug1", _sparkPlug1);
+            SetupSparkPlug(Path_SparkPlug2, "SparkPlug2", _sparkPlug2);
+            SetupSparkPlug(Path_SparkPlug3, "SparkPlug3", _sparkPlug3);
+            SetupSparkPlug(Path_SparkPlug4, "SparkPlug4", _sparkPlug4);
+        }
+
+        private void SetupSparkPlug(string path, string logLabel, ComponentMonitor monitor)
+        {
+            FsmFloat wear = FindFsmFloat(path, FsmName_Data, FsmVar_Wear, logLabel);
+            if (wear != null)
+            {
+                monitor.Value    = wear;
+                monitor.Previous = wear.Value;
             }
         }
 
