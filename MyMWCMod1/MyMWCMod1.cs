@@ -20,6 +20,7 @@ namespace MyMWCMod1
         private const string Path_OilFilter = "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Oilfilter";
         private const string Path_BulbLeft   = "CORRIS/Assemblies/VINP_HeadlightLeft/Head Light Assembly(VINXX)";
         private const string Path_BulbRight  = "CORRIS/Assemblies/VINP_HeadlightRight/Head Light Assembly(VINXX)";
+        private const string Path_Alternator = "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Alternator";
         private const string Path_SparkPlug1 = "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug1";
         private const string Path_SparkPlug2 = "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug2";
         private const string Path_SparkPlug3 = "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug3";
@@ -63,6 +64,7 @@ namespace MyMWCMod1
         private static ComponentMonitor _oilLevel    = new ComponentMonitor();
         private static ComponentMonitor _wearBulbL    = new ComponentMonitor();
         private static ComponentMonitor _wearBulbR    = new ComponentMonitor();
+        private static ComponentMonitor _alternator   = new ComponentMonitor();
         private static ComponentMonitor _sparkPlug1   = new ComponentMonitor();
         private static ComponentMonitor _sparkPlug2   = new ComponentMonitor();
         private static ComponentMonitor _sparkPlug3   = new ComponentMonitor();
@@ -92,6 +94,7 @@ namespace MyMWCMod1
             SetupOilMonitors();
             SetupHeadlightMonitors();
             SetupSparkPlugMonitors();
+            SetupAlternatorMonitor();
         }
 
         private void Mod_FixedUpdate()
@@ -104,6 +107,7 @@ namespace MyMWCMod1
             _sparkPlug2.ApplyReduction(WearReductionFactor,  WearDirection.Decreases);
             _sparkPlug3.ApplyReduction(WearReductionFactor,  WearDirection.Decreases);
             _sparkPlug4.ApplyReduction(WearReductionFactor,  WearDirection.Decreases);
+            _alternator.ApplyReduction(WearReductionFactor,  WearDirection.Decreases);
         }
 
         private void SetupDrivetrain()
@@ -173,6 +177,16 @@ namespace MyMWCMod1
             {
                 monitor.Value    = wear;
                 monitor.Previous = wear.Value;
+            }
+        }
+
+        private void SetupAlternatorMonitor()
+        {
+            FsmFloat wear = FindFsmFloat(Path_Alternator, FsmName_Data, FsmVar_Wear, "Alternator");
+            if (wear != null)
+            {
+                _alternator.Value    = wear;
+                _alternator.Previous = wear.Value;
             }
         }
 
