@@ -1,8 +1,10 @@
 using HutongGames.PlayMaker;
 using MSCLoader;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Xml;
 using UnityEngine;
 
 namespace MyMWCMod1
@@ -16,40 +18,27 @@ namespace MyMWCMod1
         public override string Description => ""; // Short description of your mod
         public override Game SupportedGames => Game.MyWinterCar;
 
-        // Game object paths
-        private const string Path_Taxi      = "JOBS/TAXIJOB/MACHTWAGEN";
-        private const string Path_Oilpan    = "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Oilpan/Oilpan(VINXX)";
-        private const string Path_OilFilter = "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Oilfilter";
-        private const string Path_BulbLeft   = "CORRIS/Assemblies/VINP_HeadlightLeft/Head Light Assembly(VINXX)";
-        private const string Path_BulbRight  = "CORRIS/Assemblies/VINP_HeadlightRight/Head Light Assembly(VINXX)";
-        private const string Path_Alternator  = "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Alternator";
-        private const string Path_BrakeMaster = "CORRIS/Assemblies/VINP_BrakeMasterCylinder/Brake Master Cylinder(VINXX)";
-        private const string Path_Heaterbox   = "CORRIS/Assemblies/VINP_Heaterbox/Heater Box(VINXX)";
-        private const string Path_SparkPlug1 = "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug1";
-        private const string Path_SparkPlug2 = "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug2";
-        private const string Path_SparkPlug3 = "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug3";
-        private const string Path_SparkPlug4 = "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug4";
-
-        // FSM names and variable names
-        private const string FsmName_Data    = "Data";
-        private const string FsmVar_OilLevel = "OilLevel";
-        private const string FsmVar_Dirt     = "Dirt";
-        private const string FsmVar_WearBulb = "WearBulb";
-        private const string FsmVar_Wear        = "Wear";
-        private const string FsmVar_BrakeFluidF = "BrakeFluidF";
-
-        // Wear reduction factor applied each FixedUpdate tick (1% of delta survives)
-        private const float WearReductionFactor = 0.01f;
+        // Path to the XML config file inside the Mods folder
+        private string XmlPath
+        {
+            get
+            {
+                string modsFolder = Path.Combine(Application.dataPath, "..", "Mods");
+                return Path.Combine(modsFolder, "MyMWCMod1_monitors.xml");
+            }
+        }
 
         private enum WearDirection { Increases, Decreases }
 
         private class ComponentMonitor
         {
+            public string        Label;
             public FsmFloat      Value;
             public float         Previous;
             public WearDirection Direction;
+            public float         Factor;
 
-            public void ApplyReduction(float factor)
+            public void ApplyReduction()
             {
                 if (Value == null) return;
 
@@ -58,25 +47,15 @@ namespace MyMWCMod1
                     : Value.Value < Previous;
 
                 if (conditionMet)
-                    Value.Value = Previous + (Value.Value - Previous) * factor;
+                    Value.Value = Previous + (Value.Value - Previous) * Factor;
 
                 Previous = Value.Value;
             }
         }
 
-        private static GameObject       machtwg;
-        private static Drivetrain       drivetrain;
-        private static ComponentMonitor _oilFiltDirt = new ComponentMonitor();
-        private static ComponentMonitor _oilLevel    = new ComponentMonitor();
-        private static ComponentMonitor _wearBulbL    = new ComponentMonitor();
-        private static ComponentMonitor _wearBulbR    = new ComponentMonitor();
-        private static ComponentMonitor _alternator   = new ComponentMonitor();
-        private static ComponentMonitor _brakeFluidF  = new ComponentMonitor();
-        private static ComponentMonitor _heaterbox    = new ComponentMonitor();
-        private static ComponentMonitor _sparkPlug1   = new ComponentMonitor();
-        private static ComponentMonitor _sparkPlug2   = new ComponentMonitor();
-        private static ComponentMonitor _sparkPlug3   = new ComponentMonitor();
-        private static ComponentMonitor _sparkPlug4   = new ComponentMonitor();
+        private static GameObject            machtwg;
+        private static Drivetrain            drivetrain;
+        private        List<ComponentMonitor> _monitors = new List<ComponentMonitor>();
 
         private SettingsCheckBox autoTransmission;
         private SettingsSlider   shiftUpRPMSetting;
@@ -106,22 +85,13 @@ namespace MyMWCMod1
 
         private void Mod_FixedUpdate()
         {
-            _oilFiltDirt.ApplyReduction(WearReductionFactor);
-            _oilLevel.ApplyReduction(WearReductionFactor);
-            _wearBulbL.ApplyReduction(WearReductionFactor);
-            _wearBulbR.ApplyReduction(WearReductionFactor);
-            _sparkPlug1.ApplyReduction(WearReductionFactor);
-            _sparkPlug2.ApplyReduction(WearReductionFactor);
-            _sparkPlug3.ApplyReduction(WearReductionFactor);
-            _sparkPlug4.ApplyReduction(WearReductionFactor);
-            _alternator.ApplyReduction(WearReductionFactor);
-            _brakeFluidF.ApplyReduction(WearReductionFactor);
-            _heaterbox.ApplyReduction(WearReductionFactor);
+            foreach (ComponentMonitor m in _monitors)
+                m.ApplyReduction();
         }
 
         private void SetupDrivetrain()
         {
-            machtwg = GameObject.Find(Path_Taxi);
+            machtwg = GameObject.Find("JOBS/TAXIJOB/MACHTWAGEN");
             if (machtwg == null)
             {
                 ModConsole.Error("FAILED TO FIND Taxi!!!");
@@ -139,28 +109,107 @@ namespace MyMWCMod1
 
         private void SetupMonitors()
         {
-            BindMonitor(_oilLevel,    Path_Oilpan,      FsmVar_OilLevel,    "OilLevel",    WearDirection.Decreases);
-            BindMonitor(_oilFiltDirt, Path_OilFilter,   FsmVar_Dirt,        "OilFiltDirt", WearDirection.Increases);
-            BindMonitor(_wearBulbL,   Path_BulbLeft,    FsmVar_WearBulb,    "WearBulbLeft",  WearDirection.Decreases);
-            BindMonitor(_wearBulbR,   Path_BulbRight,   FsmVar_WearBulb,    "WearBulbRight", WearDirection.Decreases);
-            BindMonitor(_sparkPlug1,  Path_SparkPlug1,  FsmVar_Wear,        "SparkPlug1",  WearDirection.Decreases);
-            BindMonitor(_sparkPlug2,  Path_SparkPlug2,  FsmVar_Wear,        "SparkPlug2",  WearDirection.Decreases);
-            BindMonitor(_sparkPlug3,  Path_SparkPlug3,  FsmVar_Wear,        "SparkPlug3",  WearDirection.Decreases);
-            BindMonitor(_sparkPlug4,  Path_SparkPlug4,  FsmVar_Wear,        "SparkPlug4",  WearDirection.Decreases);
-            BindMonitor(_alternator,  Path_Alternator,  FsmVar_Wear,        "Alternator",  WearDirection.Decreases);
-            BindMonitor(_brakeFluidF, Path_BrakeMaster, FsmVar_BrakeFluidF, "BrakeFluidF", WearDirection.Decreases);
-            BindMonitor(_heaterbox,   Path_Heaterbox,   FsmVar_Wear,        "Heaterbox",   WearDirection.Decreases);
+            string xmlPath = XmlPath;
+
+            if (!File.Exists(xmlPath))
+            {
+                WriteDefaultXml(xmlPath);
+                ModConsole.Log("MyMWCMod1: Created default monitors config at " + xmlPath);
+            }
+
+            _monitors = LoadMonitorsFromXml(xmlPath);
+            ModConsole.Log("MyMWCMod1: Loaded " + _monitors.Count + " monitors from " + xmlPath);
         }
 
-        private void BindMonitor(ComponentMonitor monitor, string path, string fsmVar, string label, WearDirection direction)
+        private List<ComponentMonitor> LoadMonitorsFromXml(string path)
         {
-            FsmFloat f = FindFsmFloat(path, FsmName_Data, fsmVar, label);
-            if (f != null)
+            var result = new List<ComponentMonitor>();
+
+            XmlDocument doc = new XmlDocument();
+            doc.Load(path);
+
+            XmlElement root = doc.DocumentElement; // <Monitors>
+
+            foreach (XmlNode node in root.ChildNodes)
             {
-                monitor.Value     = f;
-                monitor.Previous  = f.Value;
-                monitor.Direction = direction;
+                if (node.NodeType != XmlNodeType.Element) continue;
+                XmlElement el = (XmlElement)node;
+
+                string label     = el.GetAttribute("label");
+                string goPath    = el.GetAttribute("path");
+                string fsmName   = el.GetAttribute("fsmName");
+                string fsmVar    = el.GetAttribute("fsmVar");
+                string dirStr    = el.GetAttribute("direction");
+                string factorStr = el.GetAttribute("factor");
+
+                WearDirection direction = dirStr == "Increases"
+                    ? WearDirection.Increases
+                    : WearDirection.Decreases;
+
+                float factor;
+                if (!float.TryParse(factorStr, System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out factor))
+                    factor = 0.01f;
+
+                FsmFloat fsmFloat = FindFsmFloat(goPath, fsmName, fsmVar, label);
+                if (fsmFloat == null) continue;
+
+                result.Add(new ComponentMonitor
+                {
+                    Label     = label,
+                    Value     = fsmFloat,
+                    Previous  = fsmFloat.Value,
+                    Direction = direction,
+                    Factor    = factor
+                });
             }
+
+            return result;
+        }
+
+        private void WriteDefaultXml(string path)
+        {
+            string dir = Path.GetDirectoryName(path);
+            if (!Directory.Exists(dir))
+                Directory.CreateDirectory(dir);
+
+            XmlWriterSettings settings = new XmlWriterSettings { Indent = true };
+            using (XmlWriter w = XmlWriter.Create(path, settings))
+            {
+                w.WriteStartDocument();
+                w.WriteComment(" MyMWCMod1 monitor configuration. " +
+                               "direction: Increases | Decreases. " +
+                               "factor: 0.0-1.0 (0.01 = 1% of normal wear rate). ");
+                w.WriteStartElement("Monitors");
+
+                WriteMonitor(w, "OilLevel",    "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Oilpan/Oilpan(VINXX)",                                                                    "Data", "OilLevel",    "Decreases", 0.01f);
+                WriteMonitor(w, "OilFiltDirt", "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Oilfilter",                                                                               "Data", "Dirt",        "Increases", 0.01f);
+                WriteMonitor(w, "WearBulbL",   "CORRIS/Assemblies/VINP_HeadlightLeft/Head Light Assembly(VINXX)",                                                                                                "Data", "WearBulb",    "Decreases", 0.01f);
+                WriteMonitor(w, "WearBulbR",   "CORRIS/Assemblies/VINP_HeadlightRight/Head Light Assembly(VINXX)",                                                                                               "Data", "WearBulb",    "Decreases", 0.01f);
+                WriteMonitor(w, "SparkPlug1",  "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug1",                                      "Data", "Wear",        "Decreases", 0.01f);
+                WriteMonitor(w, "SparkPlug2",  "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug2",                                      "Data", "Wear",        "Decreases", 0.01f);
+                WriteMonitor(w, "SparkPlug3",  "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug3",                                      "Data", "Wear",        "Decreases", 0.01f);
+                WriteMonitor(w, "SparkPlug4",  "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug4",                                      "Data", "Wear",        "Decreases", 0.01f);
+                WriteMonitor(w, "Alternator",  "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Alternator",                                                                             "Data", "Wear",        "Decreases", 0.01f);
+                WriteMonitor(w, "BrakeFluidF", "CORRIS/Assemblies/VINP_BrakeMasterCylinder/Brake Master Cylinder(VINXX)",                                                                                       "Data", "BrakeFluidF", "Decreases", 0.01f);
+                WriteMonitor(w, "Heaterbox",   "CORRIS/Assemblies/VINP_Heaterbox/Heater Box(VINXX)",                                                                                                            "Data", "Wear",        "Decreases", 0.01f);
+
+                w.WriteEndElement(); // </Monitors>
+                w.WriteEndDocument();
+            }
+        }
+
+        private static void WriteMonitor(XmlWriter w, string label, string path,
+            string fsmName, string fsmVar, string direction, float factor)
+        {
+            w.WriteStartElement("Monitor");
+            w.WriteAttributeString("label",     label);
+            w.WriteAttributeString("path",      path);
+            w.WriteAttributeString("fsmName",   fsmName);
+            w.WriteAttributeString("fsmVar",    fsmVar);
+            w.WriteAttributeString("direction", direction);
+            w.WriteAttributeString("factor",    factor.ToString("G", System.Globalization.CultureInfo.InvariantCulture));
+            w.WriteEndElement();
         }
 
         private void DumpToCSV(string rootName)
