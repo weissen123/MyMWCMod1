@@ -45,14 +45,15 @@ namespace MyMWCMod1
 
         private class ComponentMonitor
         {
-            public FsmFloat Value;
-            public float    Previous;
+            public FsmFloat      Value;
+            public float         Previous;
+            public WearDirection Direction;
 
-            public void ApplyReduction(float factor, WearDirection direction)
+            public void ApplyReduction(float factor)
             {
                 if (Value == null) return;
 
-                bool conditionMet = direction == WearDirection.Increases
+                bool conditionMet = Direction == WearDirection.Increases
                     ? Value.Value > Previous
                     : Value.Value < Previous;
 
@@ -105,17 +106,17 @@ namespace MyMWCMod1
 
         private void Mod_FixedUpdate()
         {
-            _oilFiltDirt.ApplyReduction(WearReductionFactor, WearDirection.Increases);
-            _oilLevel.ApplyReduction(WearReductionFactor,    WearDirection.Decreases);
-            _wearBulbL.ApplyReduction(WearReductionFactor,   WearDirection.Decreases);
-            _wearBulbR.ApplyReduction(WearReductionFactor,   WearDirection.Decreases);
-            _sparkPlug1.ApplyReduction(WearReductionFactor,  WearDirection.Decreases);
-            _sparkPlug2.ApplyReduction(WearReductionFactor,  WearDirection.Decreases);
-            _sparkPlug3.ApplyReduction(WearReductionFactor,  WearDirection.Decreases);
-            _sparkPlug4.ApplyReduction(WearReductionFactor,  WearDirection.Decreases);
-            _alternator.ApplyReduction(WearReductionFactor,  WearDirection.Decreases);
-            _brakeFluidF.ApplyReduction(WearReductionFactor, WearDirection.Decreases);
-            _heaterbox.ApplyReduction(WearReductionFactor,   WearDirection.Decreases);
+            _oilFiltDirt.ApplyReduction(WearReductionFactor);
+            _oilLevel.ApplyReduction(WearReductionFactor);
+            _wearBulbL.ApplyReduction(WearReductionFactor);
+            _wearBulbR.ApplyReduction(WearReductionFactor);
+            _sparkPlug1.ApplyReduction(WearReductionFactor);
+            _sparkPlug2.ApplyReduction(WearReductionFactor);
+            _sparkPlug3.ApplyReduction(WearReductionFactor);
+            _sparkPlug4.ApplyReduction(WearReductionFactor);
+            _alternator.ApplyReduction(WearReductionFactor);
+            _brakeFluidF.ApplyReduction(WearReductionFactor);
+            _heaterbox.ApplyReduction(WearReductionFactor);
         }
 
         private void SetupDrivetrain()
@@ -138,26 +139,27 @@ namespace MyMWCMod1
 
         private void SetupMonitors()
         {
-            BindMonitor(_oilLevel,    Path_Oilpan,     FsmVar_OilLevel,    "OilLevel");
-            BindMonitor(_oilFiltDirt, Path_OilFilter,  FsmVar_Dirt,        "OilFiltDirt");
-            BindMonitor(_wearBulbL,   Path_BulbLeft,   FsmVar_WearBulb,    "WearBulbLeft");
-            BindMonitor(_wearBulbR,   Path_BulbRight,  FsmVar_WearBulb,    "WearBulbRight");
-            BindMonitor(_sparkPlug1,  Path_SparkPlug1, FsmVar_Wear,        "SparkPlug1");
-            BindMonitor(_sparkPlug2,  Path_SparkPlug2, FsmVar_Wear,        "SparkPlug2");
-            BindMonitor(_sparkPlug3,  Path_SparkPlug3, FsmVar_Wear,        "SparkPlug3");
-            BindMonitor(_sparkPlug4,  Path_SparkPlug4, FsmVar_Wear,        "SparkPlug4");
-            BindMonitor(_alternator,  Path_Alternator, FsmVar_Wear,        "Alternator");
-            BindMonitor(_brakeFluidF, Path_BrakeMaster, FsmVar_BrakeFluidF, "BrakeFluidF");
-            BindMonitor(_heaterbox,   Path_Heaterbox,  FsmVar_Wear,        "Heaterbox");
+            BindMonitor(_oilLevel,    Path_Oilpan,      FsmVar_OilLevel,    "OilLevel",    WearDirection.Decreases);
+            BindMonitor(_oilFiltDirt, Path_OilFilter,   FsmVar_Dirt,        "OilFiltDirt", WearDirection.Increases);
+            BindMonitor(_wearBulbL,   Path_BulbLeft,    FsmVar_WearBulb,    "WearBulbLeft",  WearDirection.Decreases);
+            BindMonitor(_wearBulbR,   Path_BulbRight,   FsmVar_WearBulb,    "WearBulbRight", WearDirection.Decreases);
+            BindMonitor(_sparkPlug1,  Path_SparkPlug1,  FsmVar_Wear,        "SparkPlug1",  WearDirection.Decreases);
+            BindMonitor(_sparkPlug2,  Path_SparkPlug2,  FsmVar_Wear,        "SparkPlug2",  WearDirection.Decreases);
+            BindMonitor(_sparkPlug3,  Path_SparkPlug3,  FsmVar_Wear,        "SparkPlug3",  WearDirection.Decreases);
+            BindMonitor(_sparkPlug4,  Path_SparkPlug4,  FsmVar_Wear,        "SparkPlug4",  WearDirection.Decreases);
+            BindMonitor(_alternator,  Path_Alternator,  FsmVar_Wear,        "Alternator",  WearDirection.Decreases);
+            BindMonitor(_brakeFluidF, Path_BrakeMaster, FsmVar_BrakeFluidF, "BrakeFluidF", WearDirection.Decreases);
+            BindMonitor(_heaterbox,   Path_Heaterbox,   FsmVar_Wear,        "Heaterbox",   WearDirection.Decreases);
         }
 
-        private void BindMonitor(ComponentMonitor monitor, string path, string fsmVar, string label)
+        private void BindMonitor(ComponentMonitor monitor, string path, string fsmVar, string label, WearDirection direction)
         {
             FsmFloat f = FindFsmFloat(path, FsmName_Data, fsmVar, label);
             if (f != null)
             {
-                monitor.Value    = f;
-                monitor.Previous = f.Value;
+                monitor.Value     = f;
+                monitor.Previous  = f.Value;
+                monitor.Direction = direction;
             }
         }
 
