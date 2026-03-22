@@ -100,12 +100,7 @@ namespace MyMWCMod1
         private void Mod_OnLoad()
         {
             SetupDrivetrain();
-            SetupOilMonitors();
-            SetupHeadlightMonitors();
-            SetupSparkPlugMonitors();
-            SetupAlternatorMonitor();
-            SetupBrakeMasterMonitor();
-            SetupHeaterboxMonitor();
+            SetupMonitors();
         }
 
         private void Mod_FixedUpdate()
@@ -141,85 +136,28 @@ namespace MyMWCMod1
             }
         }
 
-        private void SetupOilMonitors()
+        private void SetupMonitors()
         {
-            FsmFloat oilLevel = FindFsmFloat(Path_Oilpan, FsmName_Data, FsmVar_OilLevel, "OilLevel");
-            if (oilLevel != null)
-            {
-                _oilLevel.Value    = oilLevel;
-                _oilLevel.Previous = oilLevel.Value;
-            }
-
-            FsmFloat oilFiltDirt = FindFsmFloat(Path_OilFilter, FsmName_Data, FsmVar_Dirt, "OilFiltDirt");
-            if (oilFiltDirt != null)
-            {
-                _oilFiltDirt.Value    = oilFiltDirt;
-                _oilFiltDirt.Previous = oilFiltDirt.Value;
-            }
+            BindMonitor(_oilLevel,    Path_Oilpan,     FsmVar_OilLevel,    "OilLevel");
+            BindMonitor(_oilFiltDirt, Path_OilFilter,  FsmVar_Dirt,        "OilFiltDirt");
+            BindMonitor(_wearBulbL,   Path_BulbLeft,   FsmVar_WearBulb,    "WearBulbLeft");
+            BindMonitor(_wearBulbR,   Path_BulbRight,  FsmVar_WearBulb,    "WearBulbRight");
+            BindMonitor(_sparkPlug1,  Path_SparkPlug1, FsmVar_Wear,        "SparkPlug1");
+            BindMonitor(_sparkPlug2,  Path_SparkPlug2, FsmVar_Wear,        "SparkPlug2");
+            BindMonitor(_sparkPlug3,  Path_SparkPlug3, FsmVar_Wear,        "SparkPlug3");
+            BindMonitor(_sparkPlug4,  Path_SparkPlug4, FsmVar_Wear,        "SparkPlug4");
+            BindMonitor(_alternator,  Path_Alternator, FsmVar_Wear,        "Alternator");
+            BindMonitor(_brakeFluidF, Path_BrakeMaster, FsmVar_BrakeFluidF, "BrakeFluidF");
+            BindMonitor(_heaterbox,   Path_Heaterbox,  FsmVar_Wear,        "Heaterbox");
         }
 
-        private void SetupHeadlightMonitors()
+        private void BindMonitor(ComponentMonitor monitor, string path, string fsmVar, string label)
         {
-            FsmFloat bulbL = FindFsmFloat(Path_BulbLeft, FsmName_Data, FsmVar_WearBulb, "WearBulbLeft");
-            if (bulbL != null)
+            FsmFloat f = FindFsmFloat(path, FsmName_Data, fsmVar, label);
+            if (f != null)
             {
-                _wearBulbL.Value    = bulbL;
-                _wearBulbL.Previous = bulbL.Value;
-            }
-
-            FsmFloat bulbR = FindFsmFloat(Path_BulbRight, FsmName_Data, FsmVar_WearBulb, "WearBulbRight");
-            if (bulbR != null)
-            {
-                _wearBulbR.Value    = bulbR;
-                _wearBulbR.Previous = bulbR.Value;
-            }
-        }
-
-        private void SetupSparkPlugMonitors()
-        {
-            SetupSparkPlug(Path_SparkPlug1, "SparkPlug1", _sparkPlug1);
-            SetupSparkPlug(Path_SparkPlug2, "SparkPlug2", _sparkPlug2);
-            SetupSparkPlug(Path_SparkPlug3, "SparkPlug3", _sparkPlug3);
-            SetupSparkPlug(Path_SparkPlug4, "SparkPlug4", _sparkPlug4);
-        }
-
-        private void SetupSparkPlug(string path, string logLabel, ComponentMonitor monitor)
-        {
-            FsmFloat wear = FindFsmFloat(path, FsmName_Data, FsmVar_Wear, logLabel);
-            if (wear != null)
-            {
-                monitor.Value    = wear;
-                monitor.Previous = wear.Value;
-            }
-        }
-
-        private void SetupHeaterboxMonitor()
-        {
-            FsmFloat wear = FindFsmFloat(Path_Heaterbox, FsmName_Data, FsmVar_Wear, "Heaterbox");
-            if (wear != null)
-            {
-                _heaterbox.Value    = wear;
-                _heaterbox.Previous = wear.Value;
-            }
-        }
-
-        private void SetupBrakeMasterMonitor()
-        {
-            FsmFloat fluid = FindFsmFloat(Path_BrakeMaster, FsmName_Data, FsmVar_BrakeFluidF, "BrakeFluidF");
-            if (fluid != null)
-            {
-                _brakeFluidF.Value    = fluid;
-                _brakeFluidF.Previous = fluid.Value;
-            }
-        }
-
-        private void SetupAlternatorMonitor()
-        {
-            FsmFloat wear = FindFsmFloat(Path_Alternator, FsmName_Data, FsmVar_Wear, "Alternator");
-            if (wear != null)
-            {
-                _alternator.Value    = wear;
-                _alternator.Previous = wear.Value;
+                monitor.Value    = f;
+                monitor.Previous = f.Value;
             }
         }
 
