@@ -92,6 +92,7 @@ namespace MyMWCMod1
             shiftUpRPMSetting   = Settings.AddSlider("shiftUpRPM", "Shift Up RPM", 1000f, 8000f, 3500f);
             shiftDownRPMSetting = Settings.AddSlider("shiftDownRPM", "Shift Down RPM", 500f, 7000f, 1700f);
             Settings.AddButton("Dump CORRIS FSM to CSV", () => DumpToCSV("CORRIS"));
+            Settings.AddButton("Dump BACHGLOTZ FSM to CSV", () => DumpToCSV("BACHGLOTZ(1905kg)"));
         }
 
         private void Mod_OnLoad()
@@ -218,11 +219,12 @@ namespace MyMWCMod1
             }
 
             StringBuilder csv = new StringBuilder();
-            csv.AppendLine("GameObject Path,FSM Name,Float Variable Name,Float Value");
+            csv.AppendLine("GameObject Path;FSM Name;Float Variable Name;Float Value");
             RecursiveCSV(root.transform, csv);
 
-            File.WriteAllText("MWC_FSM_Dump.csv", csv.ToString());
-            ModConsole.Log("Dump complete: MWC_FSM_Dump.csv saved to game folder.");
+            string fileName = "MWC_FSM_Dump_" + rootName + ".csv";
+            File.WriteAllText(fileName, csv.ToString());
+            ModConsole.Log("Dump complete: " + fileName + " saved to game folder.");
         }
 
         private void RecursiveCSV(Transform current, StringBuilder csv)
@@ -242,18 +244,18 @@ namespace MyMWCMod1
                             string safePath = $"\"{fullPath}\"";
                             string safeFsm  = $"\"{fsm.FsmName}\"";
                             string safeVar  = $"\"{fv.Name}\"";
-                            csv.AppendLine($"{safePath},{safeFsm},{safeVar},{fv.Value}");
+                            csv.AppendLine($"{safePath};{safeFsm};{safeVar};{fv.Value}");
                         }
                     }
                     else
                     {
-                        csv.AppendLine($"\"{fullPath}\",\"{fsm.FsmName}\",N/A,0");
+                        csv.AppendLine($"\"{fullPath}\";\"{fsm.FsmName}\";N/A;0");
                     }
                 }
             }
             else
             {
-                csv.AppendLine($"\"{fullPath}\",None,None,0");
+                csv.AppendLine($"\"{fullPath}\";None;None;0");
             }
 
             foreach (Transform child in current)
