@@ -23,7 +23,7 @@ namespace MyMWCMod1
         {
             get
             {
-                string modsFolder = Path.Combine(Application.dataPath, "..", "Mods");
+                string modsFolder = Path.Combine(Path.Combine(Application.dataPath, ".."), "Mods");
                 return Path.Combine(modsFolder, "MyMWCMod1_monitors.xml");
             }
         }
