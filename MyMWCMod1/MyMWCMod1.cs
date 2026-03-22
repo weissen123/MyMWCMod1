@@ -91,7 +91,7 @@ namespace MyMWCMod1
             autoTransmission    = Settings.AddCheckBox("autoTransmission", "Automated Manual Transmission (AMT)", true);
             shiftUpRPMSetting   = Settings.AddSlider("shiftUpRPM", "Shift Up RPM", 1000f, 8000f, 3500f);
             shiftDownRPMSetting = Settings.AddSlider("shiftDownRPM", "Shift Down RPM", 500f, 7000f, 1700f);
-            Settings.AddButton("dumpCsv", "Dump CORRIS FSM to CSV", () => DumpToCSV("CORRIS"));
+            Settings.AddButton("Dump CORRIS FSM to CSV", () => DumpToCSV("CORRIS"));
         }
 
         private void Mod_OnLoad()
