@@ -1,6 +1,8 @@
 using HutongGames.PlayMaker;
 using MSCLoader;
+using System.IO;
 using System.Linq;
+using System.Text;
 using UnityEngine;
 
 namespace MyMWCMod1
@@ -89,6 +91,7 @@ namespace MyMWCMod1
             autoTransmission    = Settings.AddCheckBox("autoTransmission", "Automated Manual Transmission (AMT)", true);
             shiftUpRPMSetting   = Settings.AddSlider("shiftUpRPM", "Shift Up RPM", 1000f, 8000f, 3500f);
             shiftDownRPMSetting = Settings.AddSlider("shiftDownRPM", "Shift Down RPM", 500f, 7000f, 1700f);
+            Settings.AddButton("dumpCsv", "Dump CORRIS FSM to CSV", () => DumpToCSV("CORRIS"));
         }
 
         private void Mod_OnLoad()
@@ -203,6 +206,70 @@ namespace MyMWCMod1
                 _alternator.Value    = wear;
                 _alternator.Previous = wear.Value;
             }
+        }
+
+        private void DumpToCSV(string rootName)
+        {
+            GameObject root = GameObject.Find(rootName);
+            if (root == null)
+            {
+                ModConsole.Error($"[MWC Dumper] Could not find {rootName}");
+                return;
+            }
+
+            StringBuilder csv = new StringBuilder();
+            csv.AppendLine("GameObject Path,FSM Name,Float Variable Name,Float Value");
+            RecursiveCSV(root.transform, csv);
+
+            File.WriteAllText("MWC_FSM_Dump.csv", csv.ToString());
+            ModConsole.Log("Dump complete: MWC_FSM_Dump.csv saved to game folder.");
+        }
+
+        private void RecursiveCSV(Transform current, StringBuilder csv)
+        {
+            string fullPath = GetGameObjectPath(current.gameObject);
+            PlayMakerFSM[] fsms = current.GetComponents<PlayMakerFSM>();
+
+            if (fsms.Length > 0)
+            {
+                foreach (PlayMakerFSM fsm in fsms)
+                {
+                    FsmFloat[] floatVars = fsm.FsmVariables.FloatVariables;
+                    if (floatVars.Length > 0)
+                    {
+                        foreach (FsmFloat fv in floatVars)
+                        {
+                            string safePath = $"\"{fullPath}\"";
+                            string safeFsm  = $"\"{fsm.FsmName}\"";
+                            string safeVar  = $"\"{fv.Name}\"";
+                            csv.AppendLine($"{safePath},{safeFsm},{safeVar},{fv.Value}");
+                        }
+                    }
+                    else
+                    {
+                        csv.AppendLine($"\"{fullPath}\",\"{fsm.FsmName}\",N/A,0");
+                    }
+                }
+            }
+            else
+            {
+                csv.AppendLine($"\"{fullPath}\",None,None,0");
+            }
+
+            foreach (Transform child in current)
+                RecursiveCSV(child, csv);
+        }
+
+        private string GetGameObjectPath(GameObject obj)
+        {
+            string path = obj.name;
+            Transform t = obj.transform;
+            while (t.parent != null)
+            {
+                t = t.parent;
+                path = t.name + "/" + path;
+            }
+            return path;
         }
 
         private FsmFloat FindFsmFloat(string objectName, string fsmName, string floatName, string logLabel)
