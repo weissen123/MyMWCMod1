@@ -289,14 +289,21 @@ namespace MyMWCMod1
             PlayMakerFSM fsm = obj.GetComponentsInChildren<PlayMakerFSM>().ToList()
                 .Find((PlayMakerFSM f) => f.FsmName == fsmName);
 
-            if (fsm != null)
+            if (fsm == null)
             {
-                FsmFloat result = fsm.FsmVariables.FindFsmFloat(floatName);
-                ModConsole.Log($"{logLabel} {result.Value}");
-                return result;
+                ModConsole.Error($"FAILED TO FIND FSM '{fsmName}' on {logLabel}!!!");
+                return null;
             }
 
-            return null;
+            FsmFloat result = fsm.FsmVariables.FindFsmFloat(floatName);
+            if (result == null)
+            {
+                ModConsole.Error($"FAILED TO FIND FSM variable '{floatName}' in FSM '{fsmName}' on {logLabel}!!!");
+                return null;
+            }
+
+            ModConsole.Log($"{logLabel} {result.Value}");
+            return result;
         }
     }
 }
