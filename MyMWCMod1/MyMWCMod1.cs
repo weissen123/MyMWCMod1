@@ -186,6 +186,8 @@ namespace MyMWCMod1
             Drivetrain drivetrain = go.GetComponent<Drivetrain>();
             if (drivetrain == null) return;
 
+            ModConsole.Log("MyMWCMod1: Drivetrain setup for " + label);
+
             DrivetrainMonitor monitor = new DrivetrainMonitor { Label = label, Drivetrain = drivetrain };
 
             foreach (XmlNode settingNode in drivetrainEl.ChildNodes)
