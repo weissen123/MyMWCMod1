@@ -53,7 +53,35 @@ namespace MyMWCMod1
             }
         }
 
-        private List<ComponentMonitor> _monitors = new List<ComponentMonitor>();
+        private class DrivetrainBoolSetting
+        {
+            public SettingsCheckBox         Checkbox;
+            public Action<Drivetrain, bool> Setter;
+        }
+
+        private class DrivetrainMonitor
+        {
+            public string    Label;
+            public Drivetrain Drivetrain;
+            public readonly List<DrivetrainBoolSetting> BoolSettings = new List<DrivetrainBoolSetting>();
+
+            public void Apply()
+            {
+                foreach (DrivetrainBoolSetting s in BoolSettings)
+                    s.Setter(Drivetrain, s.Checkbox.GetValue());
+            }
+        }
+
+        // Maps XML setting id → Drivetrain bool property setter
+        private static readonly Dictionary<string, Action<Drivetrain, bool>> _drivetrainBoolSetters
+            = new Dictionary<string, Action<Drivetrain, bool>>
+            {
+                { "autoTransmission", (d, v) => d.automatic = v },
+                { "canStall",         (d, v) => d.canStall  = v },
+            };
+
+        private List<ComponentMonitor>  _monitors           = new List<ComponentMonitor>();
+        private List<DrivetrainMonitor> _drivetrainMonitors = new List<DrivetrainMonitor>();
 
         private Dictionary<string, SettingsCheckBox> _checkboxSettings = new Dictionary<string, SettingsCheckBox>();
         private Dictionary<string, SettingsSlider>   _sliderSettings   = new Dictionary<string, SettingsSlider>();
@@ -133,24 +161,23 @@ namespace MyMWCMod1
         {
             foreach (ComponentMonitor m in _monitors)
                 m.ApplyReduction();
+            foreach (DrivetrainMonitor m in _drivetrainMonitors)
+                m.Apply();
         }
 
-        private void SetupDrivetrain(string path, string label)
+        private void SetupDrivetrain(string path, string label, XmlElement drivetrainEl)
         {
-            GameObject machtwg = GameObject.Find(path);
-            if (machtwg == null)
+            GameObject go = GameObject.Find(path);
+            if (go == null)
             {
                 ModConsole.Error("FAILED TO FIND " + label + "!!!");
                 return;
             }
 
-            Drivetrain drivetrain = machtwg.GetComponent<Drivetrain>();
+            Drivetrain drivetrain = go.GetComponent<Drivetrain>();
             if (drivetrain == null) return;
 
-            SettingsCheckBox autoBox;
-            if (_checkboxSettings.TryGetValue("autoTransmission", out autoBox))
-                drivetrain.automatic = autoBox.GetValue();
-
+            // One-time slider setup
             SettingsSlider shiftUp;
             if (_sliderSettings.TryGetValue("shiftUpRPM", out shiftUp))
                 drivetrain.shiftUpRPM = (float)shiftUp.GetValue();
@@ -158,6 +185,28 @@ namespace MyMWCMod1
             SettingsSlider shiftDown;
             if (_sliderSettings.TryGetValue("shiftDownRPM", out shiftDown))
                 drivetrain.shiftDownRPM = (float)shiftDown.GetValue();
+
+            // Build a DrivetrainMonitor for checkbox settings that need active upkeep
+            DrivetrainMonitor monitor = new DrivetrainMonitor { Label = label, Drivetrain = drivetrain };
+
+            foreach (XmlNode settingNode in drivetrainEl.ChildNodes)
+            {
+                if (settingNode.NodeType != XmlNodeType.Element) continue;
+                XmlElement s = (XmlElement)settingNode;
+                if (s.GetAttribute("type") != "checkbox") continue;
+
+                string id = s.GetAttribute("id");
+                SettingsCheckBox cb;
+                Action<Drivetrain, bool> setter;
+                if (_checkboxSettings.TryGetValue(id, out cb) &&
+                    _drivetrainBoolSetters.TryGetValue(id, out setter))
+                {
+                    monitor.BoolSettings.Add(new DrivetrainBoolSetting { Checkbox = cb, Setter = setter });
+                }
+            }
+
+            if (monitor.BoolSettings.Count > 0)
+                _drivetrainMonitors.Add(monitor);
         }
 
         private void SetupMonitors()
@@ -188,7 +237,7 @@ namespace MyMWCMod1
                 XmlElement drivetrainEl = (XmlElement)el.SelectSingleNode("Drivetrain");
                 if (drivetrainEl != null)
                 {
-                    SetupDrivetrain(goPath, label);
+                    SetupDrivetrain(goPath, label, drivetrainEl);
                     continue; // not an FSM monitor
                 }
 
@@ -245,6 +294,14 @@ namespace MyMWCMod1
                 WriteSetting(w, "autoTransmission", "checkbox", "Automated Manual Transmission (AMT)", null,   null,   "true");
                 WriteSetting(w, "shiftUpRPM",       "slider",   "Shift Up RPM",                        "1000", "8000", "3500");
                 WriteSetting(w, "shiftDownRPM",     "slider",   "Shift Down RPM",                      "500",  "7000", "1700");
+                w.WriteEndElement(); // </Drivetrain>
+                w.WriteEndElement(); // </Monitor>
+
+                w.WriteStartElement("Monitor");
+                w.WriteAttributeString("label", "CORRIS");
+                w.WriteAttributeString("path",  "CORRIS");
+                w.WriteStartElement("Drivetrain");
+                WriteSetting(w, "canStall", "checkbox", "Engine can stall", null, null, "false");
                 w.WriteEndElement(); // </Drivetrain>
                 w.WriteEndElement(); // </Monitor>
 
