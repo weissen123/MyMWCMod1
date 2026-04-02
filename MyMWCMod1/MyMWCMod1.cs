@@ -221,8 +221,8 @@ namespace MyMWCMod1
                         {
                             string  condPath = condEl.GetAttribute("path");
                             string  condFsm  = condEl.GetAttribute("fsmName");
-                            string  condVar  = condEl.GetAttribute("fsmVar");
-                            FsmBool fsmBool  = FindFsmBool(condPath, condFsm, condVar, id + ".Condition");
+                            string  condBool = condEl.GetAttribute("fsmBool");
+                            FsmBool fsmBool  = FindFsmBool(condPath, condFsm, condBool, id + ".Condition");
                             if (fsmBool != null)
                                 boolSetting.Condition = () => fsmBool.Value;
                         }
@@ -268,10 +268,10 @@ namespace MyMWCMod1
                     continue; // not an FSM monitor
                 }
 
-                string fsmName   = el.GetAttribute("fsmName");
-                string fsmVar    = el.GetAttribute("fsmVar");
-                string dirStr    = el.GetAttribute("direction");
-                string factorStr = el.GetAttribute("factor");
+                string fsmName    = el.GetAttribute("fsmName");
+                string fsmFloat   = el.GetAttribute("fsmFloat");
+                string dirStr     = el.GetAttribute("direction");
+                string factorStr  = el.GetAttribute("factor");
 
                 WearDirection direction = dirStr == "Increases"
                     ? WearDirection.Increases
@@ -282,14 +282,14 @@ namespace MyMWCMod1
                         System.Globalization.CultureInfo.InvariantCulture, out factor))
                     factor = 0.01f;
 
-                FsmFloat fsmFloat = FindFsmFloat(goPath, fsmName, fsmVar, label);
-                if (fsmFloat == null) continue;
+                FsmFloat fsmFloatVar = FindFsmFloat(goPath, fsmName, fsmFloat, label);
+                if (fsmFloatVar == null) continue;
 
                 result.Add(new ComponentMonitor
                 {
                     Label     = label,
-                    Value     = fsmFloat,
-                    Previous  = fsmFloat.Value,
+                    Value     = fsmFloatVar,
+                    Previous  = fsmFloatVar.Value,
                     Direction = direction,
                     Factor    = factor
                 });
@@ -336,7 +336,7 @@ namespace MyMWCMod1
                 w.WriteStartElement("Condition");
                 w.WriteAttributeString("path",    "CORRIS/Simulation/Electricity");
                 w.WriteAttributeString("fsmName", "Power");
-                w.WriteAttributeString("fsmVar",  "EletricsOK");
+                w.WriteAttributeString("fsmBool", "EletricsOK");
                 w.WriteEndElement(); // </Condition>
                 w.WriteEndElement(); // </Setting>
                 w.WriteEndElement(); // </Drivetrain>
@@ -360,13 +360,13 @@ namespace MyMWCMod1
         }
 
         private static void WriteMonitor(XmlWriter w, string label, string path,
-            string fsmName, string fsmVar, string direction, float factor)
+            string fsmName, string fsmFloat, string direction, float factor)
         {
             w.WriteStartElement("Monitor");
             w.WriteAttributeString("label",     label);
             w.WriteAttributeString("path",      path);
             w.WriteAttributeString("fsmName",   fsmName);
-            w.WriteAttributeString("fsmVar",    fsmVar);
+            w.WriteAttributeString("fsmFloat",  fsmFloat);
             w.WriteAttributeString("direction", direction);
             w.WriteAttributeString("factor",    factor.ToString("G", System.Globalization.CultureInfo.InvariantCulture));
             w.WriteEndElement();
