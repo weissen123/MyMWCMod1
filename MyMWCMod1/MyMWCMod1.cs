@@ -53,9 +53,7 @@ namespace MyMWCMod1
             }
         }
 
-        private static GameObject            machtwg;
-        private static Drivetrain            drivetrain;
-        private        List<ComponentMonitor> _monitors = new List<ComponentMonitor>();
+        private List<ComponentMonitor> _monitors = new List<ComponentMonitor>();
 
         private Dictionary<string, SettingsCheckBox> _checkboxSettings = new Dictionary<string, SettingsCheckBox>();
         private Dictionary<string, SettingsSlider>   _sliderSettings   = new Dictionary<string, SettingsSlider>();
@@ -139,14 +137,14 @@ namespace MyMWCMod1
 
         private void SetupDrivetrain(string path, string label)
         {
-            machtwg = GameObject.Find(path);
+            GameObject machtwg = GameObject.Find(path);
             if (machtwg == null)
             {
                 ModConsole.Error("FAILED TO FIND " + label + "!!!");
                 return;
             }
 
-            drivetrain = machtwg.GetComponent<Drivetrain>();
+            Drivetrain drivetrain = machtwg.GetComponent<Drivetrain>();
             if (drivetrain == null) return;
 
             SettingsCheckBox autoBox;
