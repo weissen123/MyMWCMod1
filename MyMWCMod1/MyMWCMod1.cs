@@ -81,6 +81,14 @@ namespace MyMWCMod1
                 { "canStall",         (d, v) => d.canStall  = v },
             };
 
+        // Maps XML setting id → Drivetrain float property setter
+        private static readonly Dictionary<string, Action<Drivetrain, float>> _drivetrainFloatSetters
+            = new Dictionary<string, Action<Drivetrain, float>>
+            {
+                { "shiftUpRPM",   (d, v) => d.shiftUpRPM   = v },
+                { "shiftDownRPM", (d, v) => d.shiftDownRPM = v },
+            };
+
         private List<ComponentMonitor>  _monitors           = new List<ComponentMonitor>();
         private List<DrivetrainMonitor> _drivetrainMonitors = new List<DrivetrainMonitor>();
 
@@ -178,31 +186,30 @@ namespace MyMWCMod1
             Drivetrain drivetrain = go.GetComponent<Drivetrain>();
             if (drivetrain == null) return;
 
-            // One-time slider setup
-            SettingsSlider shiftUp;
-            if (_sliderSettings.TryGetValue("shiftUpRPM", out shiftUp))
-                drivetrain.shiftUpRPM = (float)shiftUp.GetValue();
-
-            SettingsSlider shiftDown;
-            if (_sliderSettings.TryGetValue("shiftDownRPM", out shiftDown))
-                drivetrain.shiftDownRPM = (float)shiftDown.GetValue();
-
-            // Build a DrivetrainMonitor for checkbox settings that need active upkeep
             DrivetrainMonitor monitor = new DrivetrainMonitor { Label = label, Drivetrain = drivetrain };
 
             foreach (XmlNode settingNode in drivetrainEl.ChildNodes)
             {
                 if (settingNode.NodeType != XmlNodeType.Element) continue;
-                XmlElement s = (XmlElement)settingNode;
-                if (s.GetAttribute("type") != "checkbox") continue;
+                XmlElement s    = (XmlElement)settingNode;
+                string     id   = s.GetAttribute("id");
+                string     type = s.GetAttribute("type");
 
-                string id = s.GetAttribute("id");
-                SettingsCheckBox cb;
-                Action<Drivetrain, bool> setter;
-                if (_checkboxSettings.TryGetValue(id, out cb) &&
-                    _drivetrainBoolSetters.TryGetValue(id, out setter))
+                if (type == "slider")
                 {
-                    monitor.BoolSettings.Add(new DrivetrainBoolSetting { Checkbox = cb, Setter = setter });
+                    SettingsSlider            slider;
+                    Action<Drivetrain, float> setter;
+                    if (_sliderSettings.TryGetValue(id, out slider) &&
+                        _drivetrainFloatSetters.TryGetValue(id, out setter))
+                        setter(drivetrain, (float)slider.GetValue());
+                }
+                else if (type == "checkbox")
+                {
+                    SettingsCheckBox         cb;
+                    Action<Drivetrain, bool> setter;
+                    if (_checkboxSettings.TryGetValue(id, out cb) &&
+                        _drivetrainBoolSetters.TryGetValue(id, out setter))
+                        monitor.BoolSettings.Add(new DrivetrainBoolSetting { Checkbox = cb, Setter = setter });
                 }
             }
 
