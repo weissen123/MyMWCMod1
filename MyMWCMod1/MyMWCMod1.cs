@@ -224,7 +224,7 @@ namespace MyMWCMod1
                             string condBool = condEl.GetAttribute("fsmBool");
                             if (string.IsNullOrEmpty(condPath) || string.IsNullOrEmpty(condFsm) || string.IsNullOrEmpty(condBool))
                             {
-                                ModConsole.Log($"MyMWCMod1: Condition for '{id}' is missing required attributes (path/fsmName/fsmBool) — condition ignored.");
+                                ModConsole.Error($"MyMWCMod1: Condition for '{id}' is missing required attributes (path/fsmName/fsmBool) — condition ignored.");
                             }
                             else
                             {
