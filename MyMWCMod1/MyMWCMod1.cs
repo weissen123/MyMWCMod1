@@ -343,7 +343,7 @@ namespace MyMWCMod1
                 w.WriteStartElement("Condition");
                 w.WriteAttributeString("path",    "CORRIS/Simulation/Electricity");
                 w.WriteAttributeString("fsmName", "Power");
-                w.WriteAttributeString("fsmBool", "EletricsOK");
+                w.WriteAttributeString("fsmBool", "ElectricsOK");
                 w.WriteEndElement(); // </Condition>
                 w.WriteEndElement(); // </Setting>
                 w.WriteEndElement(); // </Drivetrain>
