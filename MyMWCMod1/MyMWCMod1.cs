@@ -219,12 +219,19 @@ namespace MyMWCMod1
                         XmlElement condEl = (XmlElement)s.SelectSingleNode("Condition");
                         if (condEl != null)
                         {
-                            string  condPath = condEl.GetAttribute("path");
-                            string  condFsm  = condEl.GetAttribute("fsmName");
-                            string  condBool = condEl.GetAttribute("fsmBool");
-                            FsmBool fsmBool  = FindFsmBool(condPath, condFsm, condBool, id + ".Condition");
-                            if (fsmBool != null)
-                                boolSetting.Condition = () => fsmBool.Value;
+                            string condPath = condEl.GetAttribute("path");
+                            string condFsm  = condEl.GetAttribute("fsmName");
+                            string condBool = condEl.GetAttribute("fsmBool");
+                            if (string.IsNullOrEmpty(condPath) || string.IsNullOrEmpty(condFsm) || string.IsNullOrEmpty(condBool))
+                            {
+                                ModConsole.Log($"MyMWCMod1: Condition for '{id}' is missing required attributes (path/fsmName/fsmBool) — condition ignored.");
+                            }
+                            else
+                            {
+                                FsmBool fsmBool = FindFsmBool(condPath, condFsm, condBool, id + ".Condition");
+                                if (fsmBool != null)
+                                    boolSetting.Condition = () => fsmBool.Value;
+                            }
                         }
 
                         monitor.BoolSettings.Add(boolSetting);
