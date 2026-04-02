@@ -455,28 +455,23 @@ namespace MyMWCMod1
             GameObject obj = GameObject.Find(objectName);
             if (obj == null)
             {
-                ModConsole.Error($"FAILED TO FIND {logLabel}!!!");
+                ModConsole.Error($"FAILED TO FIND object for {logLabel}!!!");
                 return null;
             }
 
-            PlayMakerFSM fsm = obj.GetComponentsInChildren<PlayMakerFSM>().ToList()
-                .Find((PlayMakerFSM f) => f.FsmName == fsmName);
-
-            if (fsm == null)
+            foreach (PlayMakerFSM fsm in obj.GetComponentsInChildren<PlayMakerFSM>())
             {
-                ModConsole.Error($"FAILED TO FIND FSM '{fsmName}' on {logLabel}!!!");
-                return null;
+                if (fsm.FsmName != fsmName) continue;
+                FsmBool result = fsm.FsmVariables.FindFsmBool(varName);
+                if (result != null)
+                {
+                    ModConsole.Log($"{logLabel} {result.Value}");
+                    return result;
+                }
             }
 
-            FsmBool result = fsm.FsmVariables.FindFsmBool(varName);
-            if (result == null)
-            {
-                ModConsole.Error($"FAILED TO FIND FsmBool '{varName}' in FSM '{fsmName}' on {logLabel}!!!");
-                return null;
-            }
-
-            ModConsole.Log($"{logLabel} {result.Value}");
-            return result;
+            ModConsole.Error($"FAILED TO FIND FsmBool '{varName}' in any FSM '{fsmName}' on {logLabel}!!!");
+            return null;
         }
 
         private FsmFloat FindFsmFloat(string objectName, string fsmName, string floatName, string logLabel)
@@ -484,28 +479,23 @@ namespace MyMWCMod1
             GameObject obj = GameObject.Find(objectName);
             if (obj == null)
             {
-                ModConsole.Error($"FAILED TO FIND {logLabel}!!!");
+                ModConsole.Error($"FAILED TO FIND object for {logLabel}!!!");
                 return null;
             }
 
-            PlayMakerFSM fsm = obj.GetComponentsInChildren<PlayMakerFSM>().ToList()
-                .Find((PlayMakerFSM f) => f.FsmName == fsmName);
-
-            if (fsm == null)
+            foreach (PlayMakerFSM fsm in obj.GetComponentsInChildren<PlayMakerFSM>())
             {
-                ModConsole.Error($"FAILED TO FIND FSM '{fsmName}' on {logLabel}!!!");
-                return null;
+                if (fsm.FsmName != fsmName) continue;
+                FsmFloat result = fsm.FsmVariables.FindFsmFloat(floatName);
+                if (result != null)
+                {
+                    ModConsole.Log($"{logLabel} {result.Value}");
+                    return result;
+                }
             }
 
-            FsmFloat result = fsm.FsmVariables.FindFsmFloat(floatName);
-            if (result == null)
-            {
-                ModConsole.Error($"FAILED TO FIND FSM variable '{floatName}' in FSM '{fsmName}' on {logLabel}!!!");
-                return null;
-            }
-
-            ModConsole.Log($"{logLabel} {result.Value}");
-            return result;
+            ModConsole.Error($"FAILED TO FIND FsmFloat '{floatName}' in any FSM '{fsmName}' on {logLabel}!!!");
+            return null;
         }
     }
 }
