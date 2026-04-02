@@ -58,6 +58,7 @@ namespace MyMWCMod1
         {
             public SettingsCheckBox         Checkbox;
             public Action<Drivetrain, bool> Setter;
+            public Func<bool>               Condition; // null = always apply
         }
 
         private class DrivetrainMonitor
@@ -69,7 +70,8 @@ namespace MyMWCMod1
             public void Apply()
             {
                 foreach (DrivetrainBoolSetting s in BoolSettings)
-                    s.Setter(Drivetrain, s.Checkbox.GetValue());
+                    if (s.Condition == null || s.Condition())
+                        s.Setter(Drivetrain, s.Checkbox.GetValue());
             }
         }
 
@@ -211,7 +213,22 @@ namespace MyMWCMod1
                     Action<Drivetrain, bool> setter;
                     if (_checkboxSettings.TryGetValue(id, out cb) &&
                         _drivetrainBoolSetters.TryGetValue(id, out setter))
-                        monitor.BoolSettings.Add(new DrivetrainBoolSetting { Checkbox = cb, Setter = setter });
+                    {
+                        DrivetrainBoolSetting boolSetting = new DrivetrainBoolSetting { Checkbox = cb, Setter = setter };
+
+                        XmlElement condEl = (XmlElement)s.SelectSingleNode("Condition");
+                        if (condEl != null)
+                        {
+                            string  condPath = condEl.GetAttribute("path");
+                            string  condFsm  = condEl.GetAttribute("fsmName");
+                            string  condVar  = condEl.GetAttribute("fsmVar");
+                            FsmBool fsmBool  = FindFsmBool(condPath, condFsm, condVar, id + ".Condition");
+                            if (fsmBool != null)
+                                boolSetting.Condition = () => fsmBool.Value;
+                        }
+
+                        monitor.BoolSettings.Add(boolSetting);
+                    }
                 }
             }
 
@@ -311,7 +328,17 @@ namespace MyMWCMod1
                 w.WriteAttributeString("label", "CORRIS");
                 w.WriteAttributeString("path",  "CORRIS");
                 w.WriteStartElement("Drivetrain");
-                WriteSetting(w, "canStall", "checkbox", "Engine can stall", null, null, "false");
+                w.WriteStartElement("Setting");
+                w.WriteAttributeString("id",      "canStall");
+                w.WriteAttributeString("type",    "checkbox");
+                w.WriteAttributeString("label",   "Engine can stall");
+                w.WriteAttributeString("default", "false");
+                w.WriteStartElement("Condition");
+                w.WriteAttributeString("path",    "CORRIS/Simulation/Electricity");
+                w.WriteAttributeString("fsmName", "Power");
+                w.WriteAttributeString("fsmVar",  "EletricsOK");
+                w.WriteEndElement(); // </Condition>
+                w.WriteEndElement(); // </Setting>
                 w.WriteEndElement(); // </Drivetrain>
                 w.WriteEndElement(); // </Monitor>
 
@@ -421,6 +448,35 @@ namespace MyMWCMod1
                 path = t.name + "/" + path;
             }
             return path;
+        }
+
+        private FsmBool FindFsmBool(string objectName, string fsmName, string varName, string logLabel)
+        {
+            GameObject obj = GameObject.Find(objectName);
+            if (obj == null)
+            {
+                ModConsole.Error($"FAILED TO FIND {logLabel}!!!");
+                return null;
+            }
+
+            PlayMakerFSM fsm = obj.GetComponentsInChildren<PlayMakerFSM>().ToList()
+                .Find((PlayMakerFSM f) => f.FsmName == fsmName);
+
+            if (fsm == null)
+            {
+                ModConsole.Error($"FAILED TO FIND FSM '{fsmName}' on {logLabel}!!!");
+                return null;
+            }
+
+            FsmBool result = fsm.FsmVariables.FindFsmBool(varName);
+            if (result == null)
+            {
+                ModConsole.Error($"FAILED TO FIND FsmBool '{varName}' in FSM '{fsmName}' on {logLabel}!!!");
+                return null;
+            }
+
+            ModConsole.Log($"{logLabel} {result.Value}");
+            return result;
         }
 
         private FsmFloat FindFsmFloat(string objectName, string fsmName, string floatName, string logLabel)
