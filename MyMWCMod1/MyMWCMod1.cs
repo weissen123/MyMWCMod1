@@ -12,8 +12,8 @@ namespace MyMWCMod1
 {
     public class MyMWCMod1 : Mod
     {
-        public override string ID => "_MyMWCMod1"; // Your (unique) mod ID
-        public override string Name => "_MyMWCMod1"; // Your mod name
+        public override string ID => "ZZ_MyMWCMod1"; // Your (unique) mod ID
+        public override string Name => "ZZ_MyMWCMod1"; // Your mod name
         public override string Author => "JWE"; // Name of the Author (your name)
         public override string Version => "1.0"; // Version
         public override string Description => ""; // Short description of your mod
