@@ -57,9 +57,8 @@ namespace MyMWCMod1
         private static Drivetrain            drivetrain;
         private        List<ComponentMonitor> _monitors = new List<ComponentMonitor>();
 
-        private SettingsCheckBox autoTransmission;
-        private SettingsSlider   shiftUpRPMSetting;
-        private SettingsSlider   shiftDownRPMSetting;
+        private Dictionary<string, SettingsCheckBox> _checkboxSettings = new Dictionary<string, SettingsCheckBox>();
+        private Dictionary<string, SettingsSlider>   _sliderSettings   = new Dictionary<string, SettingsSlider>();
 
         public override void ModSetup()
         {
@@ -70,16 +69,65 @@ namespace MyMWCMod1
 
         private void Mod_Settings()
         {
-            autoTransmission    = Settings.AddCheckBox("autoTransmission", "Automated Manual Transmission (AMT)", true);
-            shiftUpRPMSetting   = Settings.AddSlider("shiftUpRPM", "Shift Up RPM", 1000f, 8000f, 3500f);
-            shiftDownRPMSetting = Settings.AddSlider("shiftDownRPM", "Shift Down RPM", 500f, 7000f, 1700f);
-            Settings.AddButton("Dump CORRIS FSM to CSV", () => DumpToCSV("CORRIS"));
+            EnsureXmlExists();
+            LoadDrivetrainSettings();
+            Settings.AddButton("Dump CORRIS FSM to CSV",    () => DumpToCSV("CORRIS"));
             Settings.AddButton("Dump BACHGLOTZ FSM to CSV", () => DumpToCSV("BACHGLOTZ(1905kg)"));
+        }
+
+        private void EnsureXmlExists()
+        {
+            string p = XmlPath;
+            if (!File.Exists(p))
+            {
+                WriteDefaultXml(p);
+                ModConsole.Log("MyMWCMod1: Created default monitors config at " + p);
+            }
+        }
+
+        private void LoadDrivetrainSettings()
+        {
+            XmlDocument doc = new XmlDocument();
+            doc.Load(XmlPath);
+
+            foreach (XmlNode monNode in doc.DocumentElement.ChildNodes)
+            {
+                if (monNode.NodeType != XmlNodeType.Element) continue;
+                XmlElement monEl = (XmlElement)monNode;
+
+                XmlElement drivetrainEl = (XmlElement)monEl.SelectSingleNode("Drivetrain");
+                if (drivetrainEl == null) continue;
+
+                foreach (XmlNode settingNode in drivetrainEl.ChildNodes)
+                {
+                    if (settingNode.NodeType != XmlNodeType.Element) continue;
+                    XmlElement s = (XmlElement)settingNode;
+
+                    string id       = s.GetAttribute("id");
+                    string type     = s.GetAttribute("type");
+                    string label    = s.GetAttribute("label");
+                    string defVal   = s.GetAttribute("default");
+
+                    if (type == "checkbox")
+                    {
+                        bool defBool;
+                        bool.TryParse(defVal, out defBool);
+                        _checkboxSettings[id] = Settings.AddCheckBox(id, label, defBool);
+                    }
+                    else if (type == "slider")
+                    {
+                        float min, max, def;
+                        float.TryParse(s.GetAttribute("min"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out min);
+                        float.TryParse(s.GetAttribute("max"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out max);
+                        float.TryParse(defVal,                System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out def);
+                        _sliderSettings[id] = Settings.AddSlider(id, label, min, max, def);
+                    }
+                }
+            }
         }
 
         private void Mod_OnLoad()
         {
-            SetupDrivetrain();
             SetupMonitors();
         }
 
@@ -89,34 +137,35 @@ namespace MyMWCMod1
                 m.ApplyReduction();
         }
 
-        private void SetupDrivetrain()
+        private void SetupDrivetrain(string path, string label)
         {
-            machtwg = GameObject.Find("JOBS/TAXIJOB/MACHTWAGEN");
+            machtwg = GameObject.Find(path);
             if (machtwg == null)
             {
-                ModConsole.Error("FAILED TO FIND Taxi!!!");
+                ModConsole.Error("FAILED TO FIND " + label + "!!!");
                 return;
             }
 
             drivetrain = machtwg.GetComponent<Drivetrain>();
-            if (drivetrain != null)
-            {
-                drivetrain.automatic    = autoTransmission.GetValue();
-                drivetrain.shiftUpRPM   = (float)shiftUpRPMSetting.GetValue();
-                drivetrain.shiftDownRPM = (float)shiftDownRPMSetting.GetValue();
-            }
+            if (drivetrain == null) return;
+
+            SettingsCheckBox autoBox;
+            if (_checkboxSettings.TryGetValue("autoTransmission", out autoBox))
+                drivetrain.automatic = autoBox.GetValue();
+
+            SettingsSlider shiftUp;
+            if (_sliderSettings.TryGetValue("shiftUpRPM", out shiftUp))
+                drivetrain.shiftUpRPM = (float)shiftUp.GetValue();
+
+            SettingsSlider shiftDown;
+            if (_sliderSettings.TryGetValue("shiftDownRPM", out shiftDown))
+                drivetrain.shiftDownRPM = (float)shiftDown.GetValue();
         }
 
         private void SetupMonitors()
         {
             string xmlPath = XmlPath;
-
-            if (!File.Exists(xmlPath))
-            {
-                WriteDefaultXml(xmlPath);
-                ModConsole.Log("MyMWCMod1: Created default monitors config at " + xmlPath);
-            }
-
+            EnsureXmlExists(); // no-op if already created in Mod_Settings
             _monitors = LoadMonitorsFromXml(xmlPath);
             ModConsole.Log("MyMWCMod1: Loaded " + _monitors.Count + " monitors from " + xmlPath);
         }
@@ -137,6 +186,14 @@ namespace MyMWCMod1
 
                 string label     = el.GetAttribute("label");
                 string goPath    = el.GetAttribute("path");
+
+                XmlElement drivetrainEl = (XmlElement)el.SelectSingleNode("Drivetrain");
+                if (drivetrainEl != null)
+                {
+                    SetupDrivetrain(goPath, label);
+                    continue; // not an FSM monitor
+                }
+
                 string fsmName   = el.GetAttribute("fsmName");
                 string fsmVar    = el.GetAttribute("fsmVar");
                 string dirStr    = el.GetAttribute("direction");
@@ -182,6 +239,17 @@ namespace MyMWCMod1
                                "factor: 0.0-1.0 (0.01 = 1% of normal wear rate). ");
                 w.WriteStartElement("Monitors");
 
+                // MACHTWAGEN drivetrain — settings defined here drive the in-game UI sliders/checkboxes
+                w.WriteStartElement("Monitor");
+                w.WriteAttributeString("label", "MACHTWAGEN");
+                w.WriteAttributeString("path",  "JOBS/TAXIJOB/MACHTWAGEN");
+                w.WriteStartElement("Drivetrain");
+                WriteSetting(w, "autoTransmission", "checkbox", "Automated Manual Transmission (AMT)", null,   null,   "true");
+                WriteSetting(w, "shiftUpRPM",       "slider",   "Shift Up RPM",                        "1000", "8000", "3500");
+                WriteSetting(w, "shiftDownRPM",     "slider",   "Shift Down RPM",                      "500",  "7000", "1700");
+                w.WriteEndElement(); // </Drivetrain>
+                w.WriteEndElement(); // </Monitor>
+
                 WriteMonitor(w, "OilLevel",    "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Oilpan/Oilpan(VINXX)",                                                                    "Data", "OilLevel",    "Decreases", 0.01f);
                 WriteMonitor(w, "OilFiltDirt", "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Oilfilter",                                                                               "Data", "Dirt",        "Increases", 0.01f);
                 WriteMonitor(w, "WearBulbL",   "CORRIS/Assemblies/VINP_HeadlightLeft/Head Light Assembly(VINXX)",                                                                                                "Data", "WearBulb",    "Decreases", 0.01f);
@@ -209,6 +277,19 @@ namespace MyMWCMod1
             w.WriteAttributeString("fsmVar",    fsmVar);
             w.WriteAttributeString("direction", direction);
             w.WriteAttributeString("factor",    factor.ToString("G", System.Globalization.CultureInfo.InvariantCulture));
+            w.WriteEndElement();
+        }
+
+        private static void WriteSetting(XmlWriter w, string id, string type, string label,
+            string min, string max, string defaultVal)
+        {
+            w.WriteStartElement("Setting");
+            w.WriteAttributeString("id",      id);
+            w.WriteAttributeString("type",    type);
+            w.WriteAttributeString("label",   label);
+            if (min != null) w.WriteAttributeString("min", min);
+            if (max != null) w.WriteAttributeString("max", max);
+            w.WriteAttributeString("default", defaultVal);
             w.WriteEndElement();
         }
 
