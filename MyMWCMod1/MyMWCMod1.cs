@@ -320,6 +320,20 @@ namespace MyMWCMod1
                                "factor: 0.0-1.0 (0.01 = 1% of normal wear rate). ");
                 w.WriteStartElement("Monitors");
 
+                WriteMonitor(w, "OilLevel",    "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Oilpan/Oilpan(VINXX)",                                                               "Data", "OilLevel",    "Decreases", 0.0001f);
+                WriteMonitor(w, "BrakeFluidF", "CORRIS/Assemblies/VINP_BrakeMasterCylinder/Brake Master Cylinder(VINXX)",                                                                                   "Data", "BrakeFluidF", "Decreases", 0.0001f);
+                WriteMonitor(w, "OilFiltDirt", "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Oilfilter",                                                                           "Data", "Dirt",        "Increases", 0.01f);
+                WriteMonitor(w, "WearBulbL",   "CORRIS/Assemblies/VINP_HeadlightLeft/Head Light Assembly(VINXX)",                                                                                            "Data", "WearBulb",    "Decreases", 0.01f);
+                WriteMonitor(w, "WearBulbR",   "CORRIS/Assemblies/VINP_HeadlightRight/Head Light Assembly(VINXX)",                                                                                           "Data", "WearBulb",    "Decreases", 0.01f);
+                WriteMonitor(w, "SparkPlug1",  "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug1",                                  "Data", "Wear",        "Decreases", 0.01f);
+                WriteMonitor(w, "SparkPlug2",  "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug2",                                  "Data", "Wear",        "Decreases", 0.01f);
+                WriteMonitor(w, "SparkPlug3",  "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug3",                                  "Data", "Wear",        "Decreases", 0.01f);
+                WriteMonitor(w, "SparkPlug4",  "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug4",                                  "Data", "Wear",        "Decreases", 0.01f);
+                WriteMonitor(w, "Alternator",  "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Alternator",                                                                         "Data", "Wear",        "Decreases", 0.01f);
+                WriteMonitor(w, "Heaterbox",   "CORRIS/Assemblies/VINP_Heaterbox/Heater Box(VINXX)",                                                                                                         "Data", "Wear",        "Decreases", 0.01f);
+                WriteMonitor(w, "Waterpump",   "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Waterpump",                                                                           "Data", "Wear",        "Decreases", 0.01f);
+                WriteMonitor(w, "Headgasket",  "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Headgasket",                                                                         "Data", "Wear",        "Decreases", 0.01f);
+
                 // MACHTWAGEN drivetrain — settings defined here drive the in-game UI sliders/checkboxes
                 w.WriteStartElement("Monitor");
                 w.WriteAttributeString("label", "MACHTWAGEN");
@@ -338,7 +352,7 @@ namespace MyMWCMod1
                 w.WriteStartElement("Setting");
                 w.WriteAttributeString("id",      "canStall");
                 w.WriteAttributeString("type",    "checkbox");
-                w.WriteAttributeString("label",   "Engine can stall");
+                w.WriteAttributeString("label",   "Corris Engine can stall");
                 w.WriteAttributeString("default", "false");
                 w.WriteStartElement("Condition");
                 w.WriteAttributeString("path",    "CORRIS/Simulation/Electricity");
@@ -348,18 +362,6 @@ namespace MyMWCMod1
                 w.WriteEndElement(); // </Setting>
                 w.WriteEndElement(); // </Drivetrain>
                 w.WriteEndElement(); // </Monitor>
-
-                WriteMonitor(w, "OilLevel",    "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Oilpan/Oilpan(VINXX)",                                                                    "Data", "OilLevel",    "Decreases", 0.01f);
-                WriteMonitor(w, "OilFiltDirt", "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Oilfilter",                                                                               "Data", "Dirt",        "Increases", 0.01f);
-                WriteMonitor(w, "WearBulbL",   "CORRIS/Assemblies/VINP_HeadlightLeft/Head Light Assembly(VINXX)",                                                                                                "Data", "WearBulb",    "Decreases", 0.01f);
-                WriteMonitor(w, "WearBulbR",   "CORRIS/Assemblies/VINP_HeadlightRight/Head Light Assembly(VINXX)",                                                                                               "Data", "WearBulb",    "Decreases", 0.01f);
-                WriteMonitor(w, "SparkPlug1",  "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug1",                                      "Data", "Wear",        "Decreases", 0.01f);
-                WriteMonitor(w, "SparkPlug2",  "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug2",                                      "Data", "Wear",        "Decreases", 0.01f);
-                WriteMonitor(w, "SparkPlug3",  "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug3",                                      "Data", "Wear",        "Decreases", 0.01f);
-                WriteMonitor(w, "SparkPlug4",  "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug4",                                      "Data", "Wear",        "Decreases", 0.01f);
-                WriteMonitor(w, "Alternator",  "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Alternator",                                                                             "Data", "Wear",        "Decreases", 0.01f);
-                WriteMonitor(w, "BrakeFluidF", "CORRIS/Assemblies/VINP_BrakeMasterCylinder/Brake Master Cylinder(VINXX)",                                                                                       "Data", "BrakeFluidF", "Decreases", 0.01f);
-                WriteMonitor(w, "Heaterbox",   "CORRIS/Assemblies/VINP_Heaterbox/Heater Box(VINXX)",                                                                                                            "Data", "Wear",        "Decreases", 0.01f);
 
                 w.WriteEndElement(); // </Monitors>
                 w.WriteEndDocument();
