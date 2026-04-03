@@ -2,7 +2,7 @@
 
 A gameplay mod for **My Winter Car** built on the [MSCLoader](https://github.com/piotrulos/MSCLoader) framework.
 
-Targets the taxi vehicle (MACHTWAGEN / CORRIS) and modifies drivetrain behaviour and component wear rates.
+Targets two vehicles: **CORRIS** (the car — wear reduction on all engine and body components) and **MACHTWAGEN** (the taxi job drivetrain — Automated Manual Transmission).
 
 ---
 
@@ -10,7 +10,7 @@ Targets the taxi vehicle (MACHTWAGEN / CORRIS) and modifies drivetrain behaviour
 
 - **Automated Manual Transmission (AMT)** — the taxi shifts gears automatically, with configurable shift-up and shift-down RPM thresholds
 - **Heavily reduced wear rates** for oil level, oil filter dirt, headlight bulbs, spark plugs, alternator, brake fluid, heaterbox, waterpump, and head gasket
-- **Configurable `canStall` flag** for the CORRIS engine, gated on the electrics being OK
+- **Configurable `canStall` flag** for the CORRIS engine, active only while the ignition is on
 - **XML-driven configuration** — all monitors and drivetrain settings live in a single editable file
 - **FSM CSV dumper** — export all PlayMaker float variables from CORRIS or BACHGLOTZ to a CSV, useful for discovering new paths and variable names
 
@@ -33,7 +33,7 @@ Settings are registered via MSCLoader and appear in the mod settings menu.
 | Automated Manual Transmission (AMT) | Checkbox | On | — | Auto-shifts the taxi |
 | Shift Up RPM | Slider | 3500 | 1000 – 8000 | RPM at which AMT shifts up |
 | Shift Down RPM | Slider | 1700 | 500 – 7000 | RPM at which AMT shifts down |
-| Corris Engine can stall | Checkbox | Off | — | Whether the CORRIS engine can stall (only takes effect when electrics are OK) |
+| Corris Engine can stall | Checkbox | Off | — | Whether the CORRIS engine can stall; only applies while the ignition is on |
 
 ---
 
@@ -129,6 +129,8 @@ With `factor = 0.01` only 1 % of each tick's wear is kept. The component still w
 
 Requirements: Visual Studio (or MSBuild) with .NET Framework 3.5, plus the game's `Assembly-CSharp.dll`, `UnityEngine.dll`, and `MSCLoader.dll` referenced in the project. `PlayMaker.dll` is included.
 
+A good starting point for setting up an MSCLoader mod project: https://www.overtake.gg/threads/guide-how-to-make-mods-for-mysummercar.147475/
+
 ```
 msbuild MyMWCMod1.sln /p:Configuration=Release
 ```
@@ -139,4 +141,4 @@ The post-build event copies the DLL to the configured game Mods folder automatic
 
 ## License
 
-No licence specified — all rights reserved by the author.
+Free to use, modify, and redistribute for any purpose. Provided as-is with no warranty of any kind.
