@@ -10,7 +10,7 @@ Targets two vehicles: **CORRIS** (the car — wear reduction on configured engin
 
 - **Automated Manual Transmission (AMT)** — the taxi shifts gears automatically, with configurable shift-up and shift-down RPM thresholds
 - **Heavily reduced wear rates** for oil level, oil filter dirt, headlight bulbs, spark plugs, alternator, brake fluid, heaterbox, waterpump, and head gasket — no need to swap half of the Corris after each drive any more
-- **Configurable `canStall` flag** for the CORRIS engine, active only while the ignition is on
+- **Configurable `canStall` flag** for the CORRIS engine, active only while the ignition is on — fix for automatic transmission "not crawl" issue
 - **XML-driven configuration** — all monitors and drivetrain settings live in a single editable file
 - **FSM CSV dumper** — export all PlayMaker float variables from CORRIS or BACHGLOTZ to a CSV, useful for discovering new paths and variable names
 
