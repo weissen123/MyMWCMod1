@@ -90,21 +90,24 @@ With `factor = 0.01` only 1 % of each tick's wear is kept. The component still w
 ```xml
 <Monitor label="MACHTWAGEN" path="JOBS/TAXIJOB/MACHTWAGEN">
     <Drivetrain>
-        <Setting id="autoTransmission" type="checkbox" label="..." default="true" />
-        <Setting id="shiftUpRPM"       type="slider"   label="..." min="1000" max="8000" default="3500" />
+        <Setting id="autoTransmission" type="checkbox" label="Automated Manual Transmission (AMT)" default="true" />
+        <Setting id="shiftUpRPM"       type="slider"   label="Shift Up RPM"   min="1000" max="8000" default="3500" />
+        <Setting id="shiftDownRPM"     type="slider"   label="Shift Down RPM" min="500"  max="7000" default="1700" />
     </Drivetrain>
 </Monitor>
 ```
 
-A `<Setting>` of type `checkbox` may include an optional `<Condition>` child that gates its effect on a PlayMaker bool variable:
-
 ```xml
-<Setting id="canStall" type="checkbox" label="..." default="false">
-    <Condition path="CORRIS/Simulation/Electricity" fsmName="Power" fsmBool="ElectricsOK" />
-</Setting>
+<Monitor label="CORRIS" path="CORRIS">
+    <Drivetrain>
+        <Setting id="canStall" type="checkbox" label="Corris Engine can stall" default="false">
+            <Condition path="CORRIS/Simulation/Electricity" fsmName="Power" fsmBool="ElectricsOK" />
+        </Setting>
+    </Drivetrain>
+</Monitor>
 ```
 
-If any required attribute (`path`, `fsmName`, `fsmBool`) is missing the condition is ignored and the setting is applied unconditionally.
+A `<Setting>` of type `checkbox` may include an optional `<Condition>` child that gates its effect on a PlayMaker bool variable. If any required attribute (`path`, `fsmName`, `fsmBool`) is missing the condition is ignored and the setting is applied unconditionally.
 
 ---
 
