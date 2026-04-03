@@ -75,6 +75,16 @@ Settings are registered via MSCLoader and appear in the mod settings menu.
 | Waterpump | Wear | 0.01 |
 | Headgasket | Wear | 0.01 |
 
+### How wear reduction works
+
+Every physics tick (`FixedUpdate`), if a monitored value has moved in the wear direction the change is rolled back by `(1 − factor)`:
+
+```
+new value = previous + (raw change) × factor
+```
+
+With `factor = 0.01` only 1 % of each tick's wear is kept. The component still wears — just 100× slower than normal.
+
 ### Drivetrain monitors
 
 ```xml
@@ -110,18 +120,6 @@ MWC_FSM_Dump_BACHGLOTZ(1905kg).csv
 Columns: `GameObject Path ; FSM Name ; Float Variable Name ; Float Value`
 
 Use this to discover new object paths and FSM variable names for adding your own `<Monitor>` entries.
-
----
-
-## How wear reduction works
-
-Every physics tick (`FixedUpdate`), if a monitored value has moved in the wear direction the change is rolled back by `(1 − factor)`:
-
-```
-new value = previous + (raw change) × factor
-```
-
-With `factor = 0.01` only 1 % of each tick's wear is kept. The component still wears — just 100× slower than normal.
 
 ---
 
