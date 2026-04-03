@@ -311,7 +311,7 @@ namespace MyMWCMod1
             if (!Directory.Exists(dir))
                 Directory.CreateDirectory(dir);
 
-            XmlWriterSettings settings = new XmlWriterSettings { Indent = true };
+            XmlWriterSettings settings = new XmlWriterSettings { Indent = true, IndentChars = "\t" };
             using (XmlWriter w = XmlWriter.Create(path, settings))
             {
                 w.WriteStartDocument();
