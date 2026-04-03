@@ -2,7 +2,7 @@
 
 A gameplay mod for **My Winter Car** built on the [MSCLoader](https://github.com/piotrulos/MSCLoader) framework.
 
-Targets two vehicles: **CORRIS** (the car — wear reduction on all engine and body components) and **MACHTWAGEN** (the taxi job drivetrain — Automated Manual Transmission).
+Targets two vehicles: **CORRIS** (the car — wear reduction on selected engine and body components) and **MACHTWAGEN** (the taxi job drivetrain — Automated Manual Transmission).
 
 ---
 
