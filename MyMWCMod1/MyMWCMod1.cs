@@ -58,7 +58,22 @@ namespace MyMWCMod1
         {
             public SettingsCheckBox         Checkbox;
             public Action<Drivetrain, bool> Setter;
-            public readonly List<FsmBool>   Conditions = new List<FsmBool>(); // empty = always apply
+            public readonly List<ConditionRef> Conditions = new List<ConditionRef>(); // empty = always apply
+        }
+
+        private class ConditionRef
+        {
+            private readonly Func<FsmBool> _resolver;
+            private FsmBool _resolved;
+
+            public ConditionRef(Func<FsmBool> resolver) { _resolver = resolver; }
+
+            public bool Evaluate()
+            {
+                if (_resolved != null) return _resolved.Value;
+                _resolved = _resolver(); // silent on failure, logs once on success
+                return _resolved != null && _resolved.Value;
+            }
         }
 
         private class DrivetrainMonitor
@@ -72,8 +87,8 @@ namespace MyMWCMod1
                 foreach (DrivetrainBoolSetting s in BoolSettings)
                 {
                     bool conditionMet = true;
-                    foreach (FsmBool b in s.Conditions)
-                        if (!b.Value) { conditionMet = false; break; }
+                    foreach (ConditionRef c in s.Conditions)
+                        if (!c.Evaluate()) { conditionMet = false; break; }
                     if (conditionMet)
                         s.Setter(Drivetrain, s.Checkbox.GetValue());
                 }
@@ -232,9 +247,11 @@ namespace MyMWCMod1
                                 ModConsole.Error($"MyMWCMod1: Condition for '{id}' is missing required attributes (path/fsmName/fsmBool) — condition skipped.");
                                 continue;
                             }
-                            FsmBool fsmBool = FindFsmBool(condPath, condFsm, condBool, id + ".Condition");
-                            if (fsmBool != null)
-                                boolSetting.Conditions.Add(fsmBool);
+                            string label = id + ".Condition";
+                            ConditionRef cond = new ConditionRef(
+                                () => FindFsmBool(condPath, condFsm, condBool, label, false));
+                            cond.Evaluate(); // attempt early resolution — logs success if object already exists
+                            boolSetting.Conditions.Add(cond);
                         }
 
                         monitor.BoolSettings.Add(boolSetting);
@@ -479,12 +496,12 @@ namespace MyMWCMod1
             return path;
         }
 
-        private FsmBool FindFsmBool(string objectName, string fsmName, string varName, string logLabel)
+        private FsmBool FindFsmBool(string objectName, string fsmName, string varName, string logLabel, bool logErrors = true)
         {
             GameObject obj = GameObject.Find(objectName);
             if (obj == null)
             {
-                ModConsole.Error($"FAILED TO FIND object for {logLabel}!!!");
+                if (logErrors) ModConsole.Error($"FAILED TO FIND object for {logLabel}!!!");
                 return null;
             }
 
@@ -499,7 +516,7 @@ namespace MyMWCMod1
                 }
             }
 
-            ModConsole.Error($"FAILED TO FIND FsmBool '{varName}' in any FSM '{fsmName}' on {logLabel}!!!");
+            if (logErrors) ModConsole.Error($"FAILED TO FIND FsmBool '{varName}' in any FSM '{fsmName}' on {logLabel}!!!");
             return null;
         }
 
