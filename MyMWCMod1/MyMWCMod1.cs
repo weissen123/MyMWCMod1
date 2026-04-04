@@ -247,9 +247,9 @@ namespace MyMWCMod1
                                 ModConsole.Error($"MyMWCMod1: Condition for '{id}' is missing required attributes (path/fsmName/fsmBool) — condition skipped.");
                                 continue;
                             }
-                            string label = id + ".Condition";
+                            string condLabel = id + ".Condition";
                             ConditionRef cond = new ConditionRef(
-                                () => FindFsmBool(condPath, condFsm, condBool, label, false));
+                                () => FindFsmBool(condPath, condFsm, condBool, condLabel, false));
                             cond.Evaluate(); // attempt early resolution — logs success if object already exists
                             boolSetting.Conditions.Add(cond);
                         }
