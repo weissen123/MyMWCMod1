@@ -68,6 +68,8 @@ namespace MyMWCMod1
 
             public ConditionRef(Func<FsmBool> resolver) { _resolver = resolver; }
 
+            public bool IsResolved => _resolved != null;
+
             public bool Evaluate()
             {
                 if (_resolved != null) return _resolved.Value;
@@ -251,6 +253,8 @@ namespace MyMWCMod1
                             ConditionRef cond = new ConditionRef(
                                 () => FindFsmBool(condPath, condFsm, condBool, condLabel, false));
                             cond.Evaluate(); // attempt early resolution — logs success if object already exists
+                            if (!cond.IsResolved)
+                                ModConsole.Log($"MyMWCMod1: Condition '{condBool}' on '{condPath}' not found at load — will retry at runtime.");
                             boolSetting.Conditions.Add(cond);
                         }
 
