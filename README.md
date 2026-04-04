@@ -12,7 +12,7 @@ Targets two vehicles: **CORRIS** (the car — wear reduction on configured engin
 - **Heavily reduced wear rates** for oil level, oil filter dirt, headlight bulbs, spark plugs, alternator, brake fluid, heaterbox, waterpump, and head gasket — no need to swap half of the Corris after each drive any more
 - **Configurable `canStall` flag** for the CORRIS engine, active only while the ignition is on — fix for automatic transmission "not crawl" issue
 - **XML-driven configuration** — all monitors and drivetrain settings live in a single editable file
-- **FSM CSV dumper** — export all PlayMaker float variables from CORRIS or BACHGLOTZ to a CSV, useful for discovering new paths and variable names
+- **FSM CSV dumper** — export all PlayMaker FSM variables (float, int, bool) from CORRIS or BACHGLOTZ to a CSV, useful for discovering new paths and variable names
 
 ---
 
@@ -33,7 +33,7 @@ Settings are registered via MSCLoader and appear in the mod settings menu.
 | Automated Manual Transmission (AMT) | Checkbox | On | — | Auto-shifts the taxi |
 | Shift Up RPM | Slider | 3500 | 1000 – 8000 | RPM at which AMT shifts up |
 | Shift Down RPM | Slider | 1700 | 500 – 7000 | RPM at which AMT shifts down |
-| Corris Engine can stall | Checkbox | Off | — | Whether the CORRIS engine can stall; only applies while the ignition is on |
+| Corris Engine can stall | Checkbox | Off | — | Whether the CORRIS engine can stall; only applied when electricity, fuel, and combustion FSM conditions are all true |
 
 ---
 
@@ -101,13 +101,15 @@ With `factor = 0.01` only 1 % of each tick's wear is kept. The component still w
 <Monitor label="CORRIS" path="CORRIS">
     <Drivetrain>
         <Setting id="canStall" type="checkbox" label="Corris Engine can stall" default="false">
-            <Condition path="CORRIS/Simulation/Electricity" fsmName="Power" fsmBool="ElectricsOK" />
+            <Condition path="CORRIS/Simulation/Electricity"       fsmName="Power"     fsmBool="ElectricsOK"  />
+            <Condition path="CORRIS/Simulation/Engine/Fuel"       fsmName="FuelLine"  fsmBool="FuelOK"       />
+            <Condition path="CORRIS/Simulation/Engine/Combustion" fsmName="Cylinders" fsmBool="CombustionOK" />
         </Setting>
     </Drivetrain>
 </Monitor>
 ```
 
-A `<Setting>` of type `checkbox` may include an optional `<Condition>` child that gates its effect on a PlayMaker bool variable. If any required attribute (`path`, `fsmName`, `fsmBool`) is missing the condition is ignored and the setting is applied unconditionally.
+A `<Setting>` of type `checkbox` may include one or more `<Condition>` children. All conditions must be true simultaneously (AND logic) for the setting to be applied; an empty condition list means always apply. If an object is not found at load time the condition is deferred and retried every physics tick — it evaluates as `false` until resolved. If a condition element is missing a required attribute (`path`, `fsmName`, `fsmBool`) it is skipped entirely.
 
 ---
 
@@ -120,7 +122,9 @@ MWC_FSM_Dump_CORRIS.csv
 MWC_FSM_Dump_BACHGLOTZ(1905kg).csv
 ```
 
-Columns: `GameObject Path ; FSM Name ; Float Variable Name ; Float Value`
+Columns: `GameObject Path ; FSM Name ; Type ; Variable Name ; Value`
+
+`Type` is `Float`, `Int`, or `Bool`. Rows with no variables show `N/A`.
 
 Use this to discover new object paths and FSM variable names for adding your own `<Monitor>` entries.
 
