@@ -58,7 +58,7 @@ namespace MyMWCMod1
         {
             public SettingsCheckBox         Checkbox;
             public Action<Drivetrain, bool> Setter;
-            public Func<bool>               Condition; // null = always apply
+            public readonly List<FsmBool>   Conditions = new List<FsmBool>(); // empty = always apply
         }
 
         private class DrivetrainMonitor
@@ -70,8 +70,13 @@ namespace MyMWCMod1
             public void Apply()
             {
                 foreach (DrivetrainBoolSetting s in BoolSettings)
-                    if (s.Condition == null || s.Condition())
+                {
+                    bool conditionMet = true;
+                    foreach (FsmBool b in s.Conditions)
+                        if (!b.Value) { conditionMet = false; break; }
+                    if (conditionMet)
                         s.Setter(Drivetrain, s.Checkbox.GetValue());
+                }
             }
         }
 
@@ -216,22 +221,20 @@ namespace MyMWCMod1
                     {
                         DrivetrainBoolSetting boolSetting = new DrivetrainBoolSetting { Checkbox = cb, Setter = setter };
 
-                        XmlElement condEl = (XmlElement)s.SelectSingleNode("Condition");
-                        if (condEl != null)
+                        foreach (XmlNode condNode in s.SelectNodes("Condition"))
                         {
+                            XmlElement condEl = (XmlElement)condNode;
                             string condPath = condEl.GetAttribute("path");
                             string condFsm  = condEl.GetAttribute("fsmName");
                             string condBool = condEl.GetAttribute("fsmBool");
                             if (string.IsNullOrEmpty(condPath) || string.IsNullOrEmpty(condFsm) || string.IsNullOrEmpty(condBool))
                             {
-                                ModConsole.Error($"MyMWCMod1: Condition for '{id}' is missing required attributes (path/fsmName/fsmBool) — condition ignored.");
+                                ModConsole.Error($"MyMWCMod1: Condition for '{id}' is missing required attributes (path/fsmName/fsmBool) — condition skipped.");
+                                continue;
                             }
-                            else
-                            {
-                                FsmBool fsmBool = FindFsmBool(condPath, condFsm, condBool, id + ".Condition");
-                                if (fsmBool != null)
-                                    boolSetting.Condition = () => fsmBool.Value;
-                            }
+                            FsmBool fsmBool = FindFsmBool(condPath, condFsm, condBool, id + ".Condition");
+                            if (fsmBool != null)
+                                boolSetting.Conditions.Add(fsmBool);
                         }
 
                         monitor.BoolSettings.Add(boolSetting);
@@ -358,6 +361,16 @@ namespace MyMWCMod1
                 w.WriteAttributeString("path",    "CORRIS/Simulation/Electricity");
                 w.WriteAttributeString("fsmName", "Power");
                 w.WriteAttributeString("fsmBool", "ElectricsOK");
+                w.WriteEndElement(); // </Condition>
+                w.WriteStartElement("Condition");
+                w.WriteAttributeString("path",    "CORRIS/Simulation/Engine/Fuel");
+                w.WriteAttributeString("fsmName", "FuelLine");
+                w.WriteAttributeString("fsmBool", "FuelOK");
+                w.WriteEndElement(); // </Condition>
+                w.WriteStartElement("Condition");
+                w.WriteAttributeString("path",    "CORRIS/Simulation/Engine/Combustion");
+                w.WriteAttributeString("fsmName", "Cylinders");
+                w.WriteAttributeString("fsmBool", "CombustionOK");
                 w.WriteEndElement(); // </Condition>
                 w.WriteEndElement(); // </Setting>
                 w.WriteEndElement(); // </Drivetrain>
