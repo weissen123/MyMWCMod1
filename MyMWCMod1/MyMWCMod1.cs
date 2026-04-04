@@ -494,7 +494,7 @@ namespace MyMWCMod1
                 FsmBool result = fsm.FsmVariables.FindFsmBool(varName);
                 if (result != null)
                 {
-                    ModConsole.Log($"{logLabel} {result.Value}");
+                    ModConsole.Log($"{logLabel} '{varName}' = {result.Value}");
                     return result;
                 }
             }
