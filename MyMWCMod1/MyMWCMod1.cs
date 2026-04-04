@@ -518,7 +518,7 @@ namespace MyMWCMod1
                 FsmFloat result = fsm.FsmVariables.FindFsmFloat(floatName);
                 if (result != null)
                 {
-                    ModConsole.Log($"{logLabel} {result.Value}");
+                    ModConsole.Log($"{logLabel} '{floatName}' = {result.Value}");
                     return result;
                 }
             }
