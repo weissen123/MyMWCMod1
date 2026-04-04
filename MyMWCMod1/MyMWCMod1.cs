@@ -404,7 +404,7 @@ namespace MyMWCMod1
             }
 
             StringBuilder csv = new StringBuilder();
-            csv.AppendLine("GameObject Path;FSM Name;Float Variable Name;Float Value");
+            csv.AppendLine("GameObject Path;FSM Name;Type;Variable Name;Value");
             RecursiveCSV(root.transform, csv);
 
             string fileName = "MWC_FSM_Dump_" + rootName + ".csv";
@@ -421,26 +421,33 @@ namespace MyMWCMod1
             {
                 foreach (PlayMakerFSM fsm in fsms)
                 {
-                    FsmFloat[] floatVars = fsm.FsmVariables.FloatVariables;
-                    if (floatVars.Length > 0)
+                    string safePath = "\"" + fullPath + "\"";
+                    string safeFsm  = "\"" + fsm.FsmName + "\"";
+                    bool anyVar = false;
+
+                    foreach (FsmFloat fv in fsm.FsmVariables.FloatVariables)
                     {
-                        foreach (FsmFloat fv in floatVars)
-                        {
-                            string safePath = $"\"{fullPath}\"";
-                            string safeFsm  = $"\"{fsm.FsmName}\"";
-                            string safeVar  = $"\"{fv.Name}\"";
-                            csv.AppendLine($"{safePath};{safeFsm};{safeVar};{fv.Value}");
-                        }
+                        csv.AppendLine(safePath + ";" + safeFsm + ";Float;\"" + fv.Name + "\";" + fv.Value);
+                        anyVar = true;
                     }
-                    else
+                    foreach (FsmInt iv in fsm.FsmVariables.IntVariables)
                     {
-                        csv.AppendLine($"\"{fullPath}\";\"{fsm.FsmName}\";N/A;0");
+                        csv.AppendLine(safePath + ";" + safeFsm + ";Int;\"" + iv.Name + "\";" + iv.Value);
+                        anyVar = true;
                     }
+                    foreach (FsmBool bv in fsm.FsmVariables.BoolVariables)
+                    {
+                        csv.AppendLine(safePath + ";" + safeFsm + ";Bool;\"" + bv.Name + "\";" + bv.Value);
+                        anyVar = true;
+                    }
+
+                    if (!anyVar)
+                        csv.AppendLine(safePath + ";" + safeFsm + ";N/A;N/A;0");
                 }
             }
             else
             {
-                csv.AppendLine($"\"{fullPath}\";None;None;0");
+                csv.AppendLine("\"" + fullPath + "\";None;None;None;0");
             }
 
             foreach (Transform child in current)
