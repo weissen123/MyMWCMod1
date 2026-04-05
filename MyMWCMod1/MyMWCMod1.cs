@@ -63,18 +63,54 @@ namespace MyMWCMod1
 
         private class ConditionRef
         {
-            private readonly Func<FsmBool> _resolver;
-            private FsmBool _resolved;
+            private readonly string _path;
+            private readonly string _fsmName;
+            private readonly string _varName;
+            private readonly string _logLabel;
 
-            public ConditionRef(Func<FsmBool> resolver) { _resolver = resolver; }
+            private GameObject   _cachedGO;  // set once GameObject.Find succeeds
+            private PlayMakerFSM _cachedFsm; // set once FSM-by-name scan succeeds
+            private FsmBool      _resolved;  // set once FsmVariables lookup succeeds
+
+            public ConditionRef(string path, string fsmName, string varName, string logLabel)
+            {
+                _path = path; _fsmName = fsmName; _varName = varName; _logLabel = logLabel;
+            }
 
             public bool IsResolved => _resolved != null;
 
             public bool Evaluate()
             {
+                // Hot path: bool already cached
                 if (_resolved != null) return _resolved.Value;
-                _resolved = _resolver(); // silent on failure, logs once on success
-                return _resolved != null && _resolved.Value;
+
+                // Stage 1: find the GameObject
+                if (_cachedGO == null)
+                {
+                    _cachedGO = GameObject.Find(_path);
+                    if (_cachedGO == null) return false;
+                }
+
+                // Stage 2: find the PlayMakerFSM by name (GetComponentsInChildren runs once, then cached)
+                if (_cachedFsm == null)
+                {
+                    foreach (PlayMakerFSM fsm in _cachedGO.GetComponentsInChildren<PlayMakerFSM>())
+                    {
+                        if (fsm.FsmName == _fsmName) { _cachedFsm = fsm; break; }
+                    }
+                    if (_cachedFsm == null) return false;
+                }
+
+                // Stage 3: find the bool variable
+                FsmBool result = _cachedFsm.FsmVariables.FindFsmBool(_varName);
+                if (result != null)
+                {
+                    _resolved = result;
+                    ModConsole.Log($"{_logLabel} '{_varName}' resolved = {result.Value}");
+                    return result.Value;
+                }
+
+                return false;
             }
         }
 
@@ -250,8 +286,7 @@ namespace MyMWCMod1
                                 continue;
                             }
                             string condLabel = id + ".Condition";
-                            ConditionRef cond = new ConditionRef(
-                                () => FindFsmBool(condPath, condFsm, condBool, condLabel, false));
+                            ConditionRef cond = new ConditionRef(condPath, condFsm, condBool, condLabel);
                             cond.Evaluate(); // attempt early resolution — logs success if object already exists
                             if (!cond.IsResolved)
                                 ModConsole.Log($"MyMWCMod1: Condition '{condBool}' on '{condPath}' not found at load — will retry at runtime.");
@@ -498,30 +533,6 @@ namespace MyMWCMod1
                 path = t.name + "/" + path;
             }
             return path;
-        }
-
-        private FsmBool FindFsmBool(string objectName, string fsmName, string varName, string logLabel, bool logErrors = true)
-        {
-            GameObject obj = GameObject.Find(objectName);
-            if (obj == null)
-            {
-                if (logErrors) ModConsole.Error($"FAILED TO FIND object for {logLabel}!!!");
-                return null;
-            }
-
-            foreach (PlayMakerFSM fsm in obj.GetComponentsInChildren<PlayMakerFSM>())
-            {
-                if (fsm.FsmName != fsmName) continue;
-                FsmBool result = fsm.FsmVariables.FindFsmBool(varName);
-                if (result != null)
-                {
-                    ModConsole.Log($"{logLabel} '{varName}' = {result.Value}");
-                    return result;
-                }
-            }
-
-            if (logErrors) ModConsole.Error($"FAILED TO FIND FsmBool '{varName}' in any FSM '{fsmName}' on {logLabel}!!!");
-            return null;
         }
 
         private FsmFloat FindFsmFloat(string objectName, string fsmName, string floatName, string logLabel)
