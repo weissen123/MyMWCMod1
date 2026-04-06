@@ -158,6 +158,7 @@ namespace MyMWCMod1
 
         private List<ComponentMonitor>  _monitors           = new List<ComponentMonitor>();
         private List<DrivetrainMonitor> _drivetrainMonitors = new List<DrivetrainMonitor>();
+        private Keybind _pivotResetKey;
 
         private Dictionary<string, SettingsCheckBox> _checkboxSettings = new Dictionary<string, SettingsCheckBox>();
         private Dictionary<string, SettingsSlider>   _sliderSettings   = new Dictionary<string, SettingsSlider>();
@@ -232,11 +233,12 @@ namespace MyMWCMod1
         private void Mod_OnLoad()
         {
             SetupMonitors();
+            _pivotResetKey = Keybind.Add(this, "pivotReset", "Reset Player Pivot", KeyCode.Backslash);
         }
 
         private void Mod_Update()
         {
-            if (!Input.GetKeyDown(KeyCode.Backslash)) return;
+            if (!_pivotResetKey.IsDown()) return;
 
             GameObject go = GameObject.Find(
                 "JOBS/TAXIJOB/MACHTWAGEN/Functions/PlayerTrigger/DriverHeadPivot/CameraPivotPLR/Pivot/PLAYER");
