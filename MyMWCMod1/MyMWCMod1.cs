@@ -238,7 +238,7 @@ namespace MyMWCMod1
 
         private void Mod_Update()
         {
-            if (!_pivotResetKey.IsDown()) return;
+            if (!_pivotResetKey.GetKeybindDown()) return;
 
             GameObject go = GameObject.Find(
                 "JOBS/TAXIJOB/MACHTWAGEN/Functions/PlayerTrigger/DriverHeadPivot/CameraPivotPLR/Pivot/PLAYER");
