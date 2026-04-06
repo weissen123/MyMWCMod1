@@ -68,9 +68,12 @@ namespace MyMWCMod1
             private readonly string _varName;
             private readonly string _logLabel;
 
-            private GameObject   _cachedGO;  // set once GameObject.Find succeeds
-            private PlayMakerFSM _cachedFsm; // set once FSM-by-name scan succeeds
-            private FsmBool      _resolved;  // set once FsmVariables lookup succeeds
+            private const float RetryInterval = 1f; // seconds between resolution attempts
+
+            private GameObject   _cachedGO;       // set once GameObject.Find succeeds
+            private PlayMakerFSM _cachedFsm;      // set once FSM-by-name scan succeeds
+            private FsmBool      _resolved;       // set once FsmVariables lookup succeeds
+            private float        _nextRetryTime;  // default 0f → first call always attempts
 
             public ConditionRef(string path, string fsmName, string varName, string logLabel)
             {
@@ -83,6 +86,10 @@ namespace MyMWCMod1
             {
                 // Hot path: bool already cached
                 if (_resolved != null) return _resolved.Value;
+
+                // Rate-limit retries to once per second
+                if (UnityEngine.Time.fixedTime < _nextRetryTime) return false;
+                _nextRetryTime = UnityEngine.Time.fixedTime + RetryInterval;
 
                 // Stage 1: find the GameObject
                 if (_cachedGO == null)
