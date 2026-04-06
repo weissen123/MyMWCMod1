@@ -233,7 +233,7 @@ namespace MyMWCMod1
         private void Mod_OnLoad()
         {
             SetupMonitors();
-            _pivotResetKey = Keybind.Add(this, "pivotReset", "Reset Player Pivot", KeyCode.Backslash);
+            _pivotResetKey = Keybind.Add("pivotReset", "Reset Player Pivot", KeyCode.Backslash);
         }
 
         private void Mod_Update()
