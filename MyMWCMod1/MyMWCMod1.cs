@@ -279,28 +279,37 @@ namespace MyMWCMod1
                     if (_checkboxSettings.TryGetValue(id, out cb) &&
                         _drivetrainBoolSetters.TryGetValue(id, out setter))
                     {
-                        DrivetrainBoolSetting boolSetting = new DrivetrainBoolSetting { Checkbox = cb, Setter = setter };
-
-                        foreach (XmlNode condNode in s.SelectNodes("Condition"))
+                        XmlNodeList condNodes = s.SelectNodes("Condition");
+                        if (condNodes.Count == 0)
                         {
-                            XmlElement condEl = (XmlElement)condNode;
-                            string condPath = condEl.GetAttribute("path");
-                            string condFsm  = condEl.GetAttribute("fsmName");
-                            string condBool = condEl.GetAttribute("fsmBool");
-                            if (string.IsNullOrEmpty(condPath) || string.IsNullOrEmpty(condFsm) || string.IsNullOrEmpty(condBool))
-                            {
-                                ModConsole.Error($"MyMWCMod1: Condition for '{id}' is missing required attributes (path/fsmName/fsmBool) — condition skipped.");
-                                continue;
-                            }
-                            string condLabel = id + ".Condition";
-                            ConditionRef cond = new ConditionRef(condPath, condFsm, condBool, condLabel);
-                            cond.Evaluate(); // attempt early resolution — logs success if object already exists
-                            if (!cond.IsResolved)
-                                ModConsole.Log($"MyMWCMod1: Condition '{condBool}' found at load — will retry at runtime.");
-                            boolSetting.Conditions.Add(cond);
+                            // No conditions — apply once at load, same as sliders
+                            setter(drivetrain, cb.GetValue());
                         }
+                        else
+                        {
+                            DrivetrainBoolSetting boolSetting = new DrivetrainBoolSetting { Checkbox = cb, Setter = setter };
 
-                        monitor.BoolSettings.Add(boolSetting);
+                            foreach (XmlNode condNode in condNodes)
+                            {
+                                XmlElement condEl = (XmlElement)condNode;
+                                string condPath = condEl.GetAttribute("path");
+                                string condFsm  = condEl.GetAttribute("fsmName");
+                                string condBool = condEl.GetAttribute("fsmBool");
+                                if (string.IsNullOrEmpty(condPath) || string.IsNullOrEmpty(condFsm) || string.IsNullOrEmpty(condBool))
+                                {
+                                    ModConsole.Error($"MyMWCMod1: Condition for '{id}' is missing required attributes (path/fsmName/fsmBool) — condition skipped.");
+                                    continue;
+                                }
+                                string condLabel = id + ".Condition";
+                                ConditionRef cond = new ConditionRef(condPath, condFsm, condBool, condLabel);
+                                cond.Evaluate(); // attempt early resolution — logs success if object already exists
+                                if (!cond.IsResolved)
+                                    ModConsole.Log($"MyMWCMod1: Condition '{condBool}' found at load — will retry at runtime.");
+                                boolSetting.Conditions.Add(cond);
+                            }
+
+                            monitor.BoolSettings.Add(boolSetting);
+                        }
                     }
                 }
             }
