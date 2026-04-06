@@ -2,14 +2,17 @@
 
 ## Project Overview
 
-A gameplay mod for **My Winter Car** built with the MSCLoader framework. Targets the taxi vehicle (MACHTWAGEN / CORRIS) and modifies drivetrain and component wear behavior.
+A gameplay mod for **My Winter Car** built with the MSCLoader framework. Targets the taxi vehicle (MACHTWAGEN / CORRIS / BACHGLOTZ) and modifies drivetrain and component wear behavior.
 
 **Features:**
 - Automated Manual Transmission (AMT) with configurable shift RPMs
 - Heavily reduced wear rates for oil level, oil filter dirt, headlight bulbs, spark plugs, alternator, brake fluid, heaterbox, waterpump, and head gasket
 - Configurable `canStall` flag for the CORRIS engine, gated on multiple FSM bool conditions (electricity, fuel, combustion)
-- XML-driven configuration — all monitors and drivetrain settings live in `Mods/MyMWCMod1_monitors.xml`
+- Player camera pivot reset — press a configurable key to snap the in-car PLAYER transform back to a stored pose; active only when `PlayerCurrentVehicle` matches a configured vehicle name
+- XML-driven configuration — all monitors, drivetrain settings, pivot reset poses, and keybind defaults live in `Mods/MyMWCMod1_monitors.xml`
 - FSM CSV dumper — exports float, int, and bool variables from CORRIS or BACHGLOTZ hierarchies
+
+> **Extension rule:** All per-vehicle and per-component configuration must be added to `Mods/MyMWCMod1_monitors.xml`, never hardcoded in C#. `WriteDefaultXml()` is the authoritative source for the default XML schema; update it whenever a new XML element or attribute is introduced.
 
 ## Build
 
@@ -45,9 +48,10 @@ MyMWCMod1/
 
 - **Entry point:** `MyMWCMod1.cs` — inherits from `MSCLoader.Mod`
 - **Lifecycle hooks registered in `ModSetup()`:**
-  - `OnLoad` → `Mod_OnLoad`: calls `SetupMonitors()` (component monitors) and `SetupDrivetrain()` (drivetrain monitors) — resolves game objects and FSM references
+  - `OnLoad` → `Mod_OnLoad`: calls `SetupMonitors()` (component + drivetrain + pivot reset monitors) — resolves game objects, FSM references, and the `PlayerCurrentVehicle` global FsmString
+  - `Update` → `Mod_Update`: checks the configured keybind; reads `PlayerCurrentVehicle`; applies the matching pivot reset from XML config
   - `FixedUpdate` → `Mod_FixedUpdate`: applies wear reduction (`ComponentMonitor.ApplyReduction`) and drivetrain settings (`DrivetrainMonitor.Apply`) every physics tick
-  - `ModSettings` → `Mod_Settings`: registers in-game settings UI from XML and adds CSV dump buttons
+  - `ModSettings` → `Mod_Settings`: registers in-game settings UI from XML, registers the `Reset Player Pivot` keybind, and adds CSV dump buttons
 
 ### Inner Classes
 
@@ -56,7 +60,8 @@ MyMWCMod1/
 | `ComponentMonitor` | Tracks a single `FsmFloat` wear variable; rolls back changes each tick by `factor` |
 | `DrivetrainBoolSetting` | Pairs a `SettingsCheckBox` with a `Drivetrain` property setter and a list of `ConditionRef` guards |
 | `DrivetrainMonitor` | Holds a `Drivetrain` reference and a list of `DrivetrainBoolSetting`; calls `Apply()` each tick |
-| `ConditionRef` | Lazily resolves a `FsmBool` via a `Func<FsmBool>` resolver; caches on first success; evaluates as `false` until resolved |
+| `ConditionRef` | Lazily resolves a `FsmBool` via staged GO → FSM → variable lookup; caches on first success; evaluates as `false` until resolved |
+| `PivotResetConfig` | Holds one XML-loaded pivot reset entry: vehicle name, PLAYER GO path, local position, local euler angles; list populated at `OnLoad` |
 
 ### XML Configuration (`Mods/MyMWCMod1_monitors.xml`)
 
@@ -80,6 +85,19 @@ All monitors are loaded from XML; `WriteDefaultXml()` regenerates it if missing.
   </Drivetrain>
 </Monitor>
 ```
+
+**Pivot reset** (`<PivotReset>` child on any `<Monitor>`, alongside `<Drivetrain>`):
+```xml
+<Monitor label="MACHTWAGEN" path="JOBS/TAXIJOB/MACHTWAGEN">
+  <Drivetrain>...</Drivetrain>
+  <PivotReset vehicleName="Taxi"
+              playerPath="JOBS/TAXIJOB/MACHTWAGEN/Functions/PlayerTrigger/DriverHeadPivot/CameraPivotPLR/Pivot/PLAYER"
+              posX="0.005122664" posY="-0.6894007" posZ="0.1324202"
+              rotX="0"           rotY="359.5581"   rotZ="0" />
+</Monitor>
+```
+
+`vehicleName` must match the `PlayerCurrentVehicle` global PlayMaker FsmString exactly. Multiple `<PivotReset>` elements across different monitors are all collected into `_pivotResetConfigs` at load. To add a new vehicle: add a `<PivotReset>` element to the XML — no C# changes needed.
 
 Multiple `<Condition>` elements are AND-ed. If an object is not found at load time, the `ConditionRef` is retained and retried every tick (silent until resolved).
 
@@ -111,6 +129,7 @@ Types: `Float`, `Int`, `Bool`. FSMs with no variables emit `N/A`.
 | Shift Up RPM | `shiftUpRPM` | 3500 | 1000–8000 |
 | Shift Down RPM | `shiftDownRPM` | 1700 | 500–7000 |
 | Corris Engine can stall | `canStall` | false | checkbox |
+| Reset Player Pivot | `pivotReset` | `\` (Backslash) | keybind |
 
 ## Notes
 
