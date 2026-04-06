@@ -158,7 +158,7 @@ namespace MyMWCMod1
 
         private List<ComponentMonitor>  _monitors           = new List<ComponentMonitor>();
         private List<DrivetrainMonitor> _drivetrainMonitors = new List<DrivetrainMonitor>();
-        private Keybind _pivotResetKey;
+        private SettingsKeybind _pivotResetKey;
 
         private Dictionary<string, SettingsCheckBox> _checkboxSettings = new Dictionary<string, SettingsCheckBox>();
         private Dictionary<string, SettingsSlider>   _sliderSettings   = new Dictionary<string, SettingsSlider>();
