@@ -58,7 +58,67 @@ namespace MyMWCMod1
         {
             public SettingsCheckBox         Checkbox;
             public Action<Drivetrain, bool> Setter;
-            public Func<bool>               Condition; // null = always apply
+            public readonly List<ConditionRef> Conditions = new List<ConditionRef>(); // empty = always apply
+        }
+
+        private class ConditionRef
+        {
+            private readonly string _path;
+            private readonly string _fsmName;
+            private readonly string _varName;
+            private readonly string _logLabel;
+
+            private const float RetryInterval = 1f; // seconds between resolution attempts
+
+            private GameObject   _cachedGO;       // set once GameObject.Find succeeds
+            private PlayMakerFSM _cachedFsm;      // set once FSM-by-name scan succeeds
+            private FsmBool      _resolved;       // set once FsmVariables lookup succeeds
+            private float        _nextRetryTime;  // default 0f → first call always attempts
+
+            public ConditionRef(string path, string fsmName, string varName, string logLabel)
+            {
+                _path = path; _fsmName = fsmName; _varName = varName; _logLabel = logLabel;
+            }
+
+            public bool IsResolved => _resolved != null;
+
+            public bool Evaluate()
+            {
+                // Hot path: bool already cached
+                if (_resolved != null) return _resolved.Value;
+
+                // Rate-limit retries to once per second
+                if (UnityEngine.Time.fixedTime < _nextRetryTime) return false;
+                _nextRetryTime = UnityEngine.Time.fixedTime + RetryInterval;
+
+                // Stage 1: find the GameObject
+                if (_cachedGO == null)
+                {
+                    _cachedGO = GameObject.Find(_path);
+                    if (_cachedGO == null) return false;
+                }
+
+                // Stage 2: find the PlayMakerFSM by name (GetComponentsInChildren runs once, then cached)
+                if (_cachedFsm == null)
+                {
+                    foreach (PlayMakerFSM fsm in _cachedGO.GetComponentsInChildren<PlayMakerFSM>())
+                    {
+                        if (fsm.FsmName == _fsmName) { _cachedFsm = fsm; break; }
+                    }
+                    if (_cachedFsm == null) return false;
+                }
+
+                // Stage 3: find the bool variable
+                FsmBool result = _cachedFsm.FsmVariables.FindFsmBool(_varName);
+                if (result != null)
+                {
+                    _resolved = result;
+                    ModConsole.Log($"{_logLabel} '{_varName}' resolved = {result.Value}");
+                    return result.Value;
+                }
+
+                return false;
+            }
         }
 
         private class DrivetrainMonitor
@@ -70,8 +130,13 @@ namespace MyMWCMod1
             public void Apply()
             {
                 foreach (DrivetrainBoolSetting s in BoolSettings)
-                    if (s.Condition == null || s.Condition())
+                {
+                    bool conditionMet = true;
+                    foreach (ConditionRef c in s.Conditions)
+                        if (!c.Evaluate()) { conditionMet = false; break; }
+                    if (conditionMet)
                         s.Setter(Drivetrain, s.Checkbox.GetValue());
+                }
             }
         }
 
@@ -214,27 +279,37 @@ namespace MyMWCMod1
                     if (_checkboxSettings.TryGetValue(id, out cb) &&
                         _drivetrainBoolSetters.TryGetValue(id, out setter))
                     {
-                        DrivetrainBoolSetting boolSetting = new DrivetrainBoolSetting { Checkbox = cb, Setter = setter };
-
-                        XmlElement condEl = (XmlElement)s.SelectSingleNode("Condition");
-                        if (condEl != null)
+                        XmlNodeList condNodes = s.SelectNodes("Condition");
+                        if (condNodes.Count == 0)
                         {
-                            string condPath = condEl.GetAttribute("path");
-                            string condFsm  = condEl.GetAttribute("fsmName");
-                            string condBool = condEl.GetAttribute("fsmBool");
-                            if (string.IsNullOrEmpty(condPath) || string.IsNullOrEmpty(condFsm) || string.IsNullOrEmpty(condBool))
-                            {
-                                ModConsole.Error($"MyMWCMod1: Condition for '{id}' is missing required attributes (path/fsmName/fsmBool) — condition ignored.");
-                            }
-                            else
-                            {
-                                FsmBool fsmBool = FindFsmBool(condPath, condFsm, condBool, id + ".Condition");
-                                if (fsmBool != null)
-                                    boolSetting.Condition = () => fsmBool.Value;
-                            }
+                            // No conditions — apply once at load, same as sliders
+                            setter(drivetrain, cb.GetValue());
                         }
+                        else
+                        {
+                            DrivetrainBoolSetting boolSetting = new DrivetrainBoolSetting { Checkbox = cb, Setter = setter };
 
-                        monitor.BoolSettings.Add(boolSetting);
+                            foreach (XmlNode condNode in condNodes)
+                            {
+                                XmlElement condEl = (XmlElement)condNode;
+                                string condPath = condEl.GetAttribute("path");
+                                string condFsm  = condEl.GetAttribute("fsmName");
+                                string condBool = condEl.GetAttribute("fsmBool");
+                                if (string.IsNullOrEmpty(condPath) || string.IsNullOrEmpty(condFsm) || string.IsNullOrEmpty(condBool))
+                                {
+                                    ModConsole.Error($"MyMWCMod1: Condition for '{id}' is missing required attributes (path/fsmName/fsmBool) — condition skipped.");
+                                    continue;
+                                }
+                                string condLabel = id + ".Condition";
+                                ConditionRef cond = new ConditionRef(condPath, condFsm, condBool, condLabel);
+                                cond.Evaluate(); // attempt early resolution — logs success if object already exists
+                                if (!cond.IsResolved)
+                                    ModConsole.Log($"MyMWCMod1: Condition '{condBool}' found at load — will retry at runtime.");
+                                boolSetting.Conditions.Add(cond);
+                            }
+
+                            monitor.BoolSettings.Add(boolSetting);
+                        }
                     }
                 }
             }
@@ -359,6 +434,16 @@ namespace MyMWCMod1
                 w.WriteAttributeString("fsmName", "Power");
                 w.WriteAttributeString("fsmBool", "ElectricsOK");
                 w.WriteEndElement(); // </Condition>
+                w.WriteStartElement("Condition");
+                w.WriteAttributeString("path",    "CORRIS/Simulation/Engine/Fuel");
+                w.WriteAttributeString("fsmName", "FuelLine");
+                w.WriteAttributeString("fsmBool", "FuelOK");
+                w.WriteEndElement(); // </Condition>
+                w.WriteStartElement("Condition");
+                w.WriteAttributeString("path",    "CORRIS/Simulation/Engine/Combustion");
+                w.WriteAttributeString("fsmName", "Cylinders");
+                w.WriteAttributeString("fsmBool", "CombustionOK");
+                w.WriteEndElement(); // </Condition>
                 w.WriteEndElement(); // </Setting>
                 w.WriteEndElement(); // </Drivetrain>
                 w.WriteEndElement(); // </Monitor>
@@ -404,7 +489,7 @@ namespace MyMWCMod1
             }
 
             StringBuilder csv = new StringBuilder();
-            csv.AppendLine("GameObject Path;FSM Name;Float Variable Name;Float Value");
+            csv.AppendLine("GameObject Path;FSM Name;Type;Variable Name;Value");
             RecursiveCSV(root.transform, csv);
 
             string fileName = "MWC_FSM_Dump_" + rootName + ".csv";
@@ -421,26 +506,33 @@ namespace MyMWCMod1
             {
                 foreach (PlayMakerFSM fsm in fsms)
                 {
-                    FsmFloat[] floatVars = fsm.FsmVariables.FloatVariables;
-                    if (floatVars.Length > 0)
+                    string safePath = "\"" + fullPath + "\"";
+                    string safeFsm  = "\"" + fsm.FsmName + "\"";
+                    bool anyVar = false;
+
+                    foreach (FsmFloat fv in fsm.FsmVariables.FloatVariables)
                     {
-                        foreach (FsmFloat fv in floatVars)
-                        {
-                            string safePath = $"\"{fullPath}\"";
-                            string safeFsm  = $"\"{fsm.FsmName}\"";
-                            string safeVar  = $"\"{fv.Name}\"";
-                            csv.AppendLine($"{safePath};{safeFsm};{safeVar};{fv.Value}");
-                        }
+                        csv.AppendLine(safePath + ";" + safeFsm + ";Float;\"" + fv.Name + "\";" + fv.Value);
+                        anyVar = true;
                     }
-                    else
+                    foreach (FsmInt iv in fsm.FsmVariables.IntVariables)
                     {
-                        csv.AppendLine($"\"{fullPath}\";\"{fsm.FsmName}\";N/A;0");
+                        csv.AppendLine(safePath + ";" + safeFsm + ";Int;\"" + iv.Name + "\";" + iv.Value);
+                        anyVar = true;
                     }
+                    foreach (FsmBool bv in fsm.FsmVariables.BoolVariables)
+                    {
+                        csv.AppendLine(safePath + ";" + safeFsm + ";Bool;\"" + bv.Name + "\";" + bv.Value);
+                        anyVar = true;
+                    }
+
+                    if (!anyVar)
+                        csv.AppendLine(safePath + ";" + safeFsm + ";N/A;N/A;0");
                 }
             }
             else
             {
-                csv.AppendLine($"\"{fullPath}\";None;None;0");
+                csv.AppendLine("\"" + fullPath + "\";None;None;None;0");
             }
 
             foreach (Transform child in current)
@@ -459,30 +551,6 @@ namespace MyMWCMod1
             return path;
         }
 
-        private FsmBool FindFsmBool(string objectName, string fsmName, string varName, string logLabel)
-        {
-            GameObject obj = GameObject.Find(objectName);
-            if (obj == null)
-            {
-                ModConsole.Error($"FAILED TO FIND object for {logLabel}!!!");
-                return null;
-            }
-
-            foreach (PlayMakerFSM fsm in obj.GetComponentsInChildren<PlayMakerFSM>())
-            {
-                if (fsm.FsmName != fsmName) continue;
-                FsmBool result = fsm.FsmVariables.FindFsmBool(varName);
-                if (result != null)
-                {
-                    ModConsole.Log($"{logLabel} {result.Value}");
-                    return result;
-                }
-            }
-
-            ModConsole.Error($"FAILED TO FIND FsmBool '{varName}' in any FSM '{fsmName}' on {logLabel}!!!");
-            return null;
-        }
-
         private FsmFloat FindFsmFloat(string objectName, string fsmName, string floatName, string logLabel)
         {
             GameObject obj = GameObject.Find(objectName);
@@ -498,7 +566,7 @@ namespace MyMWCMod1
                 FsmFloat result = fsm.FsmVariables.FindFsmFloat(floatName);
                 if (result != null)
                 {
-                    ModConsole.Log($"{logLabel} {result.Value}");
+                    ModConsole.Log($"{logLabel} '{floatName}' = {result.Value}");
                     return result;
                 }
             }
