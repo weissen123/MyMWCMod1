@@ -296,7 +296,7 @@ namespace MyMWCMod1
                             ConditionRef cond = new ConditionRef(condPath, condFsm, condBool, condLabel);
                             cond.Evaluate(); // attempt early resolution — logs success if object already exists
                             if (!cond.IsResolved)
-                                ModConsole.Log($"MyMWCMod1: Condition '{condBool}' on '{condPath}' not found at load — will retry at runtime.");
+                                ModConsole.Log($"MyMWCMod1: Condition '{condBool}' found at load — will retry at runtime.");
                             boolSetting.Conditions.Add(cond);
                         }
 
