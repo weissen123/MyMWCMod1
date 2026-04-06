@@ -10,8 +10,9 @@ Targets two vehicles: **CORRIS** (the car — wear reduction on configured engin
 
 - **Automated Manual Transmission (AMT)** — the taxi shifts gears automatically, with configurable shift-up and shift-down RPM thresholds
 - **Heavily reduced wear rates** for oil level, oil filter dirt, headlight bulbs, spark plugs, alternator, brake fluid, heaterbox, waterpump, and head gasket — no need to swap half of the Corris after each drive any more
-- **Configurable `canStall` flag** for the CORRIS engine, active only while the ignition is on — fix for automatic transmission "not crawl" issue
-- **XML-driven configuration** — all monitors and drivetrain settings live in a single editable file
+- **Configurable `canStall` flag** for the CORRIS engine, applied only when electricity, fuel, and combustion FSM conditions are all true — fix for automatic transmission "not crawl" issue
+- **Player camera pivot reset** — press a configurable key to snap the in-car camera back to a stored seated pose; works per-vehicle (Taxi and Corris configured by default), only fires while you are inside the matching vehicle
+- **XML-driven configuration** — all monitors, drivetrain settings, and pivot reset poses live in a single editable file; delete it to regenerate defaults
 - **FSM CSV dumper** — export all PlayMaker FSM variables (float, int, bool) from CORRIS or BACHGLOTZ to a CSV, useful for discovering new paths and variable names
 
 ---
@@ -33,7 +34,8 @@ Settings are registered via MSCLoader and appear in the mod settings menu.
 | Automated Manual Transmission (AMT) | Checkbox | On | — | Auto-shifts the taxi |
 | Shift Up RPM | Slider | 3500 | 1000 – 8000 | RPM at which AMT shifts up |
 | Shift Down RPM | Slider | 1700 | 500 – 7000 | RPM at which AMT shifts down |
-| Corris Engine can stall | Checkbox | Off | — | Whether the CORRIS engine can stall; only applied when electricity, fuel, and combustion FSM conditions are all true |
+| Corris Engine can stall | Checkbox | Off | — | Whether the CORRIS engine can stall; only applied when electricity (`ElectricsOK`), fuel (`FuelOK`), and combustion (`CombustionOK`) FSM conditions are all true simultaneously |
+| Reset Player Pivot | Keybind | `\` | — | Snaps the in-car PLAYER transform to the stored pose for the current vehicle |
 
 ---
 
@@ -110,6 +112,29 @@ With `factor = 0.01` only 1 % of each tick's wear is kept. The component still w
 ```
 
 A `<Setting>` of type `checkbox` may include one or more `<Condition>` children. All conditions must be true simultaneously (AND logic) for the setting to be applied; an empty condition list means always apply. If an object is not found at load time the condition is deferred and retried every physics tick — it evaluates as `false` until resolved. If a condition element is missing a required attribute (`path`, `fsmName`, `fsmBool`) it is skipped entirely.
+
+### Pivot reset
+
+A `<PivotReset>` child on any `<Monitor>` defines the stored seated pose for a vehicle. When the keybind is pressed and the `PlayerCurrentVehicle` global FSM string matches `vehicleName`, the PLAYER transform at `playerPath` is snapped to the specified local position and rotation.
+
+```xml
+<Monitor label="MACHTWAGEN" path="JOBS/TAXIJOB/MACHTWAGEN">
+    <Drivetrain>...</Drivetrain>
+    <PivotReset vehicleName="Taxi"
+                playerPath="JOBS/TAXIJOB/MACHTWAGEN/Functions/PlayerTrigger/DriverHeadPivot/CameraPivotPLR/Pivot/PLAYER"
+                posX="0.005122664" posY="-0.6894007" posZ="0.1324202"
+                rotX="0"           rotY="359.5581"   rotZ="0" />
+</Monitor>
+```
+
+| Attribute | Description |
+|---|---|
+| `vehicleName` | Must match the `PlayerCurrentVehicle` PlayMaker global string exactly |
+| `playerPath` | `GameObject.Find()` path to the PLAYER transform |
+| `posX/Y/Z` | Target `localPosition` |
+| `rotX/Y/Z` | Target `localEulerAngles` |
+
+To add pivot reset support for another vehicle, add a `<PivotReset>` element to that vehicle's `<Monitor>` — no code changes needed.
 
 ---
 
