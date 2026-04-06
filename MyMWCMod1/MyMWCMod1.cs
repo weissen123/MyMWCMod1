@@ -175,6 +175,7 @@ namespace MyMWCMod1
         {
             EnsureXmlExists();
             LoadDrivetrainSettings();
+            _pivotResetKey = Keybind.Add("pivotReset", "Reset Player Pivot", KeyCode.Backslash);
             Settings.AddButton("Dump CORRIS FSM to CSV",    () => DumpToCSV("CORRIS"));
             Settings.AddButton("Dump BACHGLOTZ FSM to CSV", () => DumpToCSV("BACHGLOTZ(1905kg)"));
         }
@@ -233,7 +234,6 @@ namespace MyMWCMod1
         private void Mod_OnLoad()
         {
             SetupMonitors();
-            _pivotResetKey = Keybind.Add("pivotReset", "Reset Player Pivot", KeyCode.Backslash);
         }
 
         private void Mod_Update()
