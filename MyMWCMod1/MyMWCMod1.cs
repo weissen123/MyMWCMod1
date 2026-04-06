@@ -158,7 +158,6 @@ namespace MyMWCMod1
 
         private List<ComponentMonitor>  _monitors           = new List<ComponentMonitor>();
         private List<DrivetrainMonitor> _drivetrainMonitors = new List<DrivetrainMonitor>();
-        private Transform _playerPivot; // cached in Mod_OnLoad for backslash key action
 
         private Dictionary<string, SettingsCheckBox> _checkboxSettings = new Dictionary<string, SettingsCheckBox>();
         private Dictionary<string, SettingsSlider>   _sliderSettings   = new Dictionary<string, SettingsSlider>();
@@ -233,32 +232,22 @@ namespace MyMWCMod1
         private void Mod_OnLoad()
         {
             SetupMonitors();
-            GameObject playerGO = GameObject.Find(
-                "JOBS/TAXIJOB/MACHTWAGEN/Functions/PlayerTrigger/DriverHeadPivot/CameraPivotPLR/Pivot/PLAYER");
-            if (playerGO != null)
-                _playerPivot = playerGO.transform;
-            else
-                ModConsole.Error("MyMWCMod1: Could not find PLAYER pivot transform at load.");
         }
 
         private void Mod_Update()
         {
             if (!Input.GetKeyDown(KeyCode.Backslash)) return;
 
-            if (_playerPivot == null)
+            GameObject go = GameObject.Find(
+                "JOBS/TAXIJOB/MACHTWAGEN/Functions/PlayerTrigger/DriverHeadPivot/CameraPivotPLR/Pivot/PLAYER");
+            if (go == null)
             {
-                GameObject go = GameObject.Find(
-                    "JOBS/TAXIJOB/MACHTWAGEN/Functions/PlayerTrigger/DriverHeadPivot/CameraPivotPLR/Pivot/PLAYER");
-                if (go == null)
-                {
-                    ModConsole.Error("MyMWCMod1: Backslash pressed but PLAYER pivot not found.");
-                    return;
-                }
-                _playerPivot = go.transform;
+                ModConsole.Error("MyMWCMod1: Backslash pressed but PLAYER pivot not found.");
+                return;
             }
 
-            _playerPivot.localPosition    = new Vector3(0.005122664f, -0.6894007f, 0.1324202f);
-            _playerPivot.localEulerAngles = new Vector3(0f, 359.5581f, 0f);
+            go.transform.localPosition    = new Vector3(0.005122664f, -0.6894007f, 0.1324202f);
+            go.transform.localEulerAngles = new Vector3(0f, 359.5581f, 0f);
             ModConsole.Log("MyMWCMod1: PLAYER pivot reset.");
         }
 
