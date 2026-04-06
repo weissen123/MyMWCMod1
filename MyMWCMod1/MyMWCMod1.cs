@@ -159,6 +159,7 @@ namespace MyMWCMod1
         private List<ComponentMonitor>  _monitors           = new List<ComponentMonitor>();
         private List<DrivetrainMonitor> _drivetrainMonitors = new List<DrivetrainMonitor>();
         private SettingsKeybind _pivotResetKey;
+        private FsmString _playerCurrentVehicle;
 
         private Dictionary<string, SettingsCheckBox> _checkboxSettings = new Dictionary<string, SettingsCheckBox>();
         private Dictionary<string, SettingsSlider>   _sliderSettings   = new Dictionary<string, SettingsSlider>();
@@ -234,11 +235,19 @@ namespace MyMWCMod1
         private void Mod_OnLoad()
         {
             SetupMonitors();
+            _playerCurrentVehicle = PlayMakerGlobals.Instance.Variables.FindFsmString("PlayerCurrentVehicle");
+            if (_playerCurrentVehicle == null)
+                ModConsole.Error("MyMWCMod1: Could not find global FsmString 'PlayerCurrentVehicle'.");
         }
 
         private void Mod_Update()
         {
             if (!_pivotResetKey.GetKeybindDown()) return;
+
+            if (_playerCurrentVehicle == null)
+                _playerCurrentVehicle = PlayMakerGlobals.Instance.Variables.FindFsmString("PlayerCurrentVehicle");
+
+            if (_playerCurrentVehicle == null || _playerCurrentVehicle.Value != "Taxi") return;
 
             GameObject go = GameObject.Find(
                 "JOBS/TAXIJOB/MACHTWAGEN/Functions/PlayerTrigger/DriverHeadPivot/CameraPivotPLR/Pivot/PLAYER");
