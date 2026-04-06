@@ -54,6 +54,14 @@ namespace MyMWCMod1
             }
         }
 
+        private class PivotResetConfig
+        {
+            public string  VehicleName;
+            public string  GameObjectPath;
+            public Vector3 LocalPosition;
+            public Vector3 LocalEulerAngles;
+        }
+
         private class DrivetrainBoolSetting
         {
             public SettingsCheckBox         Checkbox;
@@ -156,8 +164,9 @@ namespace MyMWCMod1
                 { "shiftDownRPM", (d, v) => d.shiftDownRPM = v },
             };
 
-        private List<ComponentMonitor>  _monitors           = new List<ComponentMonitor>();
-        private List<DrivetrainMonitor> _drivetrainMonitors = new List<DrivetrainMonitor>();
+        private List<ComponentMonitor>  _monitors            = new List<ComponentMonitor>();
+        private List<DrivetrainMonitor> _drivetrainMonitors  = new List<DrivetrainMonitor>();
+        private List<PivotResetConfig>  _pivotResetConfigs   = new List<PivotResetConfig>();
         private SettingsKeybind _pivotResetKey;
         private FsmString _playerCurrentVehicle;
 
@@ -247,19 +256,25 @@ namespace MyMWCMod1
             if (_playerCurrentVehicle == null)
                 _playerCurrentVehicle = PlayMakerGlobals.Instance.Variables.FindFsmString("PlayerCurrentVehicle");
 
-            if (_playerCurrentVehicle == null || _playerCurrentVehicle.Value != "Taxi") return;
+            if (_playerCurrentVehicle == null) return;
 
-            GameObject go = GameObject.Find(
-                "JOBS/TAXIJOB/MACHTWAGEN/Functions/PlayerTrigger/DriverHeadPivot/CameraPivotPLR/Pivot/PLAYER");
+            string vehicle = _playerCurrentVehicle.Value;
+            PivotResetConfig config = null;
+            foreach (PivotResetConfig c in _pivotResetConfigs)
+                if (c.VehicleName == vehicle) { config = c; break; }
+
+            if (config == null) return;
+
+            GameObject go = GameObject.Find(config.GameObjectPath);
             if (go == null)
             {
-                ModConsole.Error("MyMWCMod1: Backslash pressed but PLAYER pivot not found.");
+                ModConsole.Error("MyMWCMod1: Backslash pressed but PLAYER pivot not found for " + vehicle + ".");
                 return;
             }
 
-            go.transform.localPosition    = new Vector3(0.005122664f, -0.6894007f, 0.1324202f);
-            go.transform.localEulerAngles = new Vector3(0f, 359.5581f, 0f);
-            ModConsole.Log("MyMWCMod1: PLAYER pivot reset.");
+            go.transform.localPosition    = config.LocalPosition;
+            go.transform.localEulerAngles = config.LocalEulerAngles;
+            ModConsole.Log("MyMWCMod1: PLAYER pivot reset for " + vehicle + ".");
         }
 
         private void Mod_FixedUpdate()
@@ -372,6 +387,25 @@ namespace MyMWCMod1
                 string label     = el.GetAttribute("label");
                 string goPath    = el.GetAttribute("path");
 
+                XmlElement pivotEl = (XmlElement)el.SelectSingleNode("PivotReset");
+                if (pivotEl != null)
+                {
+                    float px, py, pz, rx, ry, rz;
+                    float.TryParse(pivotEl.GetAttribute("posX"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out px);
+                    float.TryParse(pivotEl.GetAttribute("posY"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out py);
+                    float.TryParse(pivotEl.GetAttribute("posZ"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out pz);
+                    float.TryParse(pivotEl.GetAttribute("rotX"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out rx);
+                    float.TryParse(pivotEl.GetAttribute("rotY"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out ry);
+                    float.TryParse(pivotEl.GetAttribute("rotZ"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out rz);
+                    _pivotResetConfigs.Add(new PivotResetConfig
+                    {
+                        VehicleName      = pivotEl.GetAttribute("vehicleName"),
+                        GameObjectPath   = pivotEl.GetAttribute("playerPath"),
+                        LocalPosition    = new Vector3(px, py, pz),
+                        LocalEulerAngles = new Vector3(rx, ry, rz),
+                    });
+                }
+
                 XmlElement drivetrainEl = (XmlElement)el.SelectSingleNode("Drivetrain");
                 if (drivetrainEl != null)
                 {
@@ -447,6 +481,9 @@ namespace MyMWCMod1
                 WriteSetting(w, "shiftUpRPM",       "slider",   "Shift Up RPM",                        "1000", "8000", "3500");
                 WriteSetting(w, "shiftDownRPM",     "slider",   "Shift Down RPM",                      "500",  "7000", "1700");
                 w.WriteEndElement(); // </Drivetrain>
+                WritePivotReset(w, "Taxi",
+                    "JOBS/TAXIJOB/MACHTWAGEN/Functions/PlayerTrigger/DriverHeadPivot/CameraPivotPLR/Pivot/PLAYER",
+                    0.005122664f, -0.6894007f, 0.1324202f, 0f, 359.5581f, 0f);
                 w.WriteEndElement(); // </Monitor>
 
                 w.WriteStartElement("Monitor");
@@ -475,6 +512,9 @@ namespace MyMWCMod1
                 w.WriteEndElement(); // </Condition>
                 w.WriteEndElement(); // </Setting>
                 w.WriteEndElement(); // </Drivetrain>
+                WritePivotReset(w, "Corris",
+                    "CORRIS/Functions/DriverHeadPivot/CameraPivotPLR/SeatPivot/PLAYER",
+                    -0.02537131f, -0.6552508f, 0.1635915f, 0f, 0.6978999f, 0f);
                 w.WriteEndElement(); // </Monitor>
 
                 w.WriteEndElement(); // </Monitors>
@@ -492,6 +532,21 @@ namespace MyMWCMod1
             w.WriteAttributeString("fsmFloat",  fsmFloat);
             w.WriteAttributeString("direction", direction);
             w.WriteAttributeString("factor",    factor.ToString("G", System.Globalization.CultureInfo.InvariantCulture));
+            w.WriteEndElement();
+        }
+
+        private static void WritePivotReset(XmlWriter w, string vehicleName, string playerPath,
+            float px, float py, float pz, float rx, float ry, float rz)
+        {
+            w.WriteStartElement("PivotReset");
+            w.WriteAttributeString("vehicleName", vehicleName);
+            w.WriteAttributeString("playerPath",  playerPath);
+            w.WriteAttributeString("posX", px.ToString("G9", System.Globalization.CultureInfo.InvariantCulture));
+            w.WriteAttributeString("posY", py.ToString("G9", System.Globalization.CultureInfo.InvariantCulture));
+            w.WriteAttributeString("posZ", pz.ToString("G9", System.Globalization.CultureInfo.InvariantCulture));
+            w.WriteAttributeString("rotX", rx.ToString("G9", System.Globalization.CultureInfo.InvariantCulture));
+            w.WriteAttributeString("rotY", ry.ToString("G9", System.Globalization.CultureInfo.InvariantCulture));
+            w.WriteAttributeString("rotZ", rz.ToString("G9", System.Globalization.CultureInfo.InvariantCulture));
             w.WriteEndElement();
         }
 
