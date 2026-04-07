@@ -474,8 +474,8 @@ namespace MyMWCMod1
   <Monitor label=""MACHTWAGEN"" path=""JOBS/TAXIJOB/MACHTWAGEN"">
     <Drivetrain>
       <Setting id=""autoTransmission"" type=""checkbox"" label=""Automated Manual Transmission (AMT)"" default=""true"" />
-      <Setting id=""shiftUpRPM"" type=""slider"" label=""Shift Up RPM"" min=""1000"" max=""8000"" default=""3500"" />
-      <Setting id=""shiftDownRPM"" type=""slider"" label=""Shift Down RPM"" min=""500"" max=""7000"" default=""1700"" />
+      <Setting id=""shiftUpRPM""       type=""slider""   label=""Shift Up RPM""                        min=""1000"" max=""8000"" default=""3500"" />
+      <Setting id=""shiftDownRPM""     type=""slider""   label=""Shift Down RPM""                      min=""500""  max=""7000"" default=""1700"" />
     </Drivetrain>
     <PivotReset vehicleName=""Taxi""
       playerPath=""JOBS/TAXIJOB/MACHTWAGEN/Functions/PlayerTrigger/DriverHeadPivot/CameraPivotPLR/Pivot/PLAYER""
@@ -486,9 +486,9 @@ namespace MyMWCMod1
   <Monitor label=""CORRIS"" path=""CORRIS"">
     <Drivetrain>
       <Setting id=""canStall"" type=""checkbox"" label=""Corris Engine can stall"" default=""false"">
-        <Condition path=""CORRIS/Simulation/Electricity"" fsmName=""Power"" fsmBool=""ElectricsOK"" />
-        <Condition path=""CORRIS/Simulation/Engine/Fuel"" fsmName=""FuelLine"" fsmBool=""FuelOK"" />
-        <Condition path=""CORRIS/Simulation/Engine/Combustion"" fsmName=""Cylinders"" fsmBool=""CombustionOK"" />
+        <Condition fsmName=""Power""     fsmBool=""ElectricsOK""  path=""CORRIS/Simulation/Electricity"" />
+        <Condition fsmName=""FuelLine""  fsmBool=""FuelOK""       path=""CORRIS/Simulation/Engine/Fuel"" />
+        <Condition fsmName=""Cylinders"" fsmBool=""CombustionOK"" path=""CORRIS/Simulation/Engine/Combustion"" />
       </Setting>
     </Drivetrain>
     <PivotReset vehicleName=""Corris""
