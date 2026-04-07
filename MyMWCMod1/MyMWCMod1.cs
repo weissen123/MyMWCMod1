@@ -449,118 +449,56 @@ namespace MyMWCMod1
             if (!Directory.Exists(dir))
                 Directory.CreateDirectory(dir);
 
-            XmlWriterSettings settings = new XmlWriterSettings { Indent = true, IndentChars = "\t" };
-            using (XmlWriter w = XmlWriter.Create(path, settings))
-            {
-                w.WriteStartDocument();
-                w.WriteComment(" MyMWCMod1 monitor configuration. " +
-                               "direction: Increases | Decreases. " +
-                               "factor: 0.0-1.0 (0.01 = 1% of normal wear rate). ");
-                w.WriteStartElement("Monitors");
+            const string xml =
+@"<?xml version=""1.0"" encoding=""utf-8""?>
+<!-- MyMWCMod1 monitor configuration. direction: Increases | Decreases. factor: 0.0-1.0 (0.01 = 1% of normal wear rate). -->
+<Monitors>
+  <Monitor label=""OilLevel"" path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Oilpan/Oilpan(VINXX)"" fsmName=""Data"" fsmFloat=""OilLevel"" direction=""Decreases"" factor=""0.0001"" />
+  <Monitor label=""BrakeFluidF"" path=""CORRIS/Assemblies/VINP_BrakeMasterCylinder/Brake Master Cylinder(VINXX)"" fsmName=""Data"" fsmFloat=""BrakeFluidF"" direction=""Decreases"" factor=""0.0001"" />
+  <Monitor label=""OilFiltDirt"" path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Oilfilter"" fsmName=""Data"" fsmFloat=""Dirt"" direction=""Increases"" factor=""0.01"" />
+  <Monitor label=""WearBulbL"" path=""CORRIS/Assemblies/VINP_HeadlightLeft/Head Light Assembly(VINXX)"" fsmName=""Data"" fsmFloat=""WearBulb"" direction=""Decreases"" factor=""0.01"" />
+  <Monitor label=""WearBulbR"" path=""CORRIS/Assemblies/VINP_HeadlightRight/Head Light Assembly(VINXX)"" fsmName=""Data"" fsmFloat=""WearBulb"" direction=""Decreases"" factor=""0.01"" />
+  <Monitor label=""SparkPlug1"" path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug1"" fsmName=""Data"" fsmFloat=""Wear"" direction=""Decreases"" factor=""0.01"" />
+  <Monitor label=""SparkPlug2"" path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug2"" fsmName=""Data"" fsmFloat=""Wear"" direction=""Decreases"" factor=""0.01"" />
+  <Monitor label=""SparkPlug3"" path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug3"" fsmName=""Data"" fsmFloat=""Wear"" direction=""Decreases"" factor=""0.01"" />
+  <Monitor label=""SparkPlug4"" path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug4"" fsmName=""Data"" fsmFloat=""Wear"" direction=""Decreases"" factor=""0.01"" />
+  <Monitor label=""Alternator"" path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Alternator"" fsmName=""Data"" fsmFloat=""Wear"" direction=""Decreases"" factor=""0.01"" />
+  <Monitor label=""Heaterbox"" path=""CORRIS/Assemblies/VINP_Heaterbox/Heater Box(VINXX)"" fsmName=""Data"" fsmFloat=""Wear"" direction=""Decreases"" factor=""0.01"" />
+  <Monitor label=""Waterpump"" path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Waterpump"" fsmName=""Data"" fsmFloat=""Wear"" direction=""Decreases"" factor=""0.01"" />
+  <Monitor label=""Headgasket"" path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Headgasket"" fsmName=""Data"" fsmFloat=""Wear"" direction=""Decreases"" factor=""0.01"" />
+  <Monitor label=""TimingBelt"" path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_TimingBelt"" fsmName=""Data"" fsmFloat=""Wear"" direction=""Decreases"" factor=""0.01"" />
+  <Monitor label=""FanBelt"" path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_FanBelt"" fsmName=""Data"" fsmFloat=""Wear"" direction=""Decreases"" factor=""0.01"" />
+  <Monitor label=""Oilpump"" path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Oilpump"" fsmName=""Data"" fsmFloat=""Wear"" direction=""Decreases"" factor=""0.01"" />
+  <Monitor label=""RearAxle"" path=""CORRIS/PhysicalAssemblies/REAR/AxleDamagePivot/RearWheelsStatic/WHEELc_RL/wheel_spindle_rl/VINP_RearAxle/Rear Axle (EB) (VINXX)"" fsmName=""Data"" fsmFloat=""Wear"" direction=""Decreases"" factor=""0.01"" />
 
-                WriteMonitor(w, "OilLevel",    "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Oilpan/Oilpan(VINXX)",                                                               "Data", "OilLevel",    "Decreases", 0.0001f);
-                WriteMonitor(w, "BrakeFluidF", "CORRIS/Assemblies/VINP_BrakeMasterCylinder/Brake Master Cylinder(VINXX)",                                                                                   "Data", "BrakeFluidF", "Decreases", 0.0001f);
-                WriteMonitor(w, "OilFiltDirt", "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Oilfilter",                                                                           "Data", "Dirt",        "Increases", 0.01f);
-                WriteMonitor(w, "WearBulbL",   "CORRIS/Assemblies/VINP_HeadlightLeft/Head Light Assembly(VINXX)",                                                                                            "Data", "WearBulb",    "Decreases", 0.01f);
-                WriteMonitor(w, "WearBulbR",   "CORRIS/Assemblies/VINP_HeadlightRight/Head Light Assembly(VINXX)",                                                                                           "Data", "WearBulb",    "Decreases", 0.01f);
-                WriteMonitor(w, "SparkPlug1",  "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug1",                                  "Data", "Wear",        "Decreases", 0.01f);
-                WriteMonitor(w, "SparkPlug2",  "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug2",                                  "Data", "Wear",        "Decreases", 0.01f);
-                WriteMonitor(w, "SparkPlug3",  "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug3",                                  "Data", "Wear",        "Decreases", 0.01f);
-                WriteMonitor(w, "SparkPlug4",  "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug4",                                  "Data", "Wear",        "Decreases", 0.01f);
-                WriteMonitor(w, "Alternator",  "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Alternator",                                                                         "Data", "Wear",        "Decreases", 0.01f);
-                WriteMonitor(w, "Heaterbox",   "CORRIS/Assemblies/VINP_Heaterbox/Heater Box(VINXX)",                                                                                                         "Data", "Wear",        "Decreases", 0.01f);
-                WriteMonitor(w, "Waterpump",   "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Waterpump",                                                                           "Data", "Wear",        "Decreases", 0.01f);
-                WriteMonitor(w, "Headgasket",  "CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Headgasket",                                                                         "Data", "Wear",        "Decreases", 0.01f);
+  <Monitor label=""MACHTWAGEN"" path=""JOBS/TAXIJOB/MACHTWAGEN"">
+    <Drivetrain>
+      <Setting id=""autoTransmission"" type=""checkbox"" label=""Automated Manual Transmission (AMT)"" default=""true"" />
+      <Setting id=""shiftUpRPM"" type=""slider"" label=""Shift Up RPM"" min=""1000"" max=""8000"" default=""3500"" />
+      <Setting id=""shiftDownRPM"" type=""slider"" label=""Shift Down RPM"" min=""500"" max=""7000"" default=""1700"" />
+    </Drivetrain>
+    <PivotReset vehicleName=""Taxi""
+      playerPath=""JOBS/TAXIJOB/MACHTWAGEN/Functions/PlayerTrigger/DriverHeadPivot/CameraPivotPLR/Pivot/PLAYER""
+      posX=""0.005122664"" posY=""-0.6894007"" posZ=""0.1324202""
+      rotX=""0"" rotY=""359.5581"" rotZ=""0""/>
+  </Monitor>
 
-                // MACHTWAGEN drivetrain — settings defined here drive the in-game UI sliders/checkboxes
-                w.WriteStartElement("Monitor");
-                w.WriteAttributeString("label", "MACHTWAGEN");
-                w.WriteAttributeString("path",  "JOBS/TAXIJOB/MACHTWAGEN");
-                w.WriteStartElement("Drivetrain");
-                WriteSetting(w, "autoTransmission", "checkbox", "Automated Manual Transmission (AMT)", null,   null,   "true");
-                WriteSetting(w, "shiftUpRPM",       "slider",   "Shift Up RPM",                        "1000", "8000", "3500");
-                WriteSetting(w, "shiftDownRPM",     "slider",   "Shift Down RPM",                      "500",  "7000", "1700");
-                w.WriteEndElement(); // </Drivetrain>
-                WritePivotReset(w, "Taxi",
-                    "JOBS/TAXIJOB/MACHTWAGEN/Functions/PlayerTrigger/DriverHeadPivot/CameraPivotPLR/Pivot/PLAYER",
-                    0.005122664f, -0.6894007f, 0.1324202f, 0f, 359.5581f, 0f);
-                w.WriteEndElement(); // </Monitor>
+  <Monitor label=""CORRIS"" path=""CORRIS"">
+    <Drivetrain>
+      <Setting id=""canStall"" type=""checkbox"" label=""Corris Engine can stall"" default=""false"">
+        <Condition path=""CORRIS/Simulation/Electricity"" fsmName=""Power"" fsmBool=""ElectricsOK"" />
+        <Condition path=""CORRIS/Simulation/Engine/Fuel"" fsmName=""FuelLine"" fsmBool=""FuelOK"" />
+        <Condition path=""CORRIS/Simulation/Engine/Combustion"" fsmName=""Cylinders"" fsmBool=""CombustionOK"" />
+      </Setting>
+    </Drivetrain>
+    <PivotReset vehicleName=""Corris""
+      playerPath=""CORRIS/Functions/DriverHeadPivot/CameraPivotPLR/SeatPivot/PLAYER""
+      posX=""-0.01190625"" posY=""-0.6566017"" posZ=""0.2135472""
+      rotX=""0"" rotY=""0.6978999"" rotZ=""0""/>
+  </Monitor>
+</Monitors>";
 
-                w.WriteStartElement("Monitor");
-                w.WriteAttributeString("label", "CORRIS");
-                w.WriteAttributeString("path",  "CORRIS");
-                w.WriteStartElement("Drivetrain");
-                w.WriteStartElement("Setting");
-                w.WriteAttributeString("id",      "canStall");
-                w.WriteAttributeString("type",    "checkbox");
-                w.WriteAttributeString("label",   "Corris Engine can stall");
-                w.WriteAttributeString("default", "false");
-                w.WriteStartElement("Condition");
-                w.WriteAttributeString("path",    "CORRIS/Simulation/Electricity");
-                w.WriteAttributeString("fsmName", "Power");
-                w.WriteAttributeString("fsmBool", "ElectricsOK");
-                w.WriteEndElement(); // </Condition>
-                w.WriteStartElement("Condition");
-                w.WriteAttributeString("path",    "CORRIS/Simulation/Engine/Fuel");
-                w.WriteAttributeString("fsmName", "FuelLine");
-                w.WriteAttributeString("fsmBool", "FuelOK");
-                w.WriteEndElement(); // </Condition>
-                w.WriteStartElement("Condition");
-                w.WriteAttributeString("path",    "CORRIS/Simulation/Engine/Combustion");
-                w.WriteAttributeString("fsmName", "Cylinders");
-                w.WriteAttributeString("fsmBool", "CombustionOK");
-                w.WriteEndElement(); // </Condition>
-                w.WriteEndElement(); // </Setting>
-                w.WriteEndElement(); // </Drivetrain>
-                WritePivotReset(w, "Corris",
-                    "CORRIS/Functions/DriverHeadPivot/CameraPivotPLR/SeatPivot/PLAYER",
-                    -0.02537131f, -0.6552508f, 0.1635915f, 0f, 0.6978999f, 0f);
-                w.WriteEndElement(); // </Monitor>
-
-                w.WriteEndElement(); // </Monitors>
-                w.WriteEndDocument();
-            }
-        }
-
-        private static void WriteMonitor(XmlWriter w, string label, string path,
-            string fsmName, string fsmFloat, string direction, float factor)
-        {
-            w.WriteStartElement("Monitor");
-            w.WriteAttributeString("label",     label);
-            w.WriteAttributeString("path",      path);
-            w.WriteAttributeString("fsmName",   fsmName);
-            w.WriteAttributeString("fsmFloat",  fsmFloat);
-            w.WriteAttributeString("direction", direction);
-            w.WriteAttributeString("factor",    factor.ToString("G", System.Globalization.CultureInfo.InvariantCulture));
-            w.WriteEndElement();
-        }
-
-        private static void WritePivotReset(XmlWriter w, string vehicleName, string playerPath,
-            float px, float py, float pz, float rx, float ry, float rz)
-        {
-            w.WriteStartElement("PivotReset");
-            w.WriteAttributeString("vehicleName", vehicleName);
-            w.WriteAttributeString("playerPath",  playerPath);
-            w.WriteAttributeString("posX", px.ToString("G9", System.Globalization.CultureInfo.InvariantCulture));
-            w.WriteAttributeString("posY", py.ToString("G9", System.Globalization.CultureInfo.InvariantCulture));
-            w.WriteAttributeString("posZ", pz.ToString("G9", System.Globalization.CultureInfo.InvariantCulture));
-            w.WriteAttributeString("rotX", rx.ToString("G9", System.Globalization.CultureInfo.InvariantCulture));
-            w.WriteAttributeString("rotY", ry.ToString("G9", System.Globalization.CultureInfo.InvariantCulture));
-            w.WriteAttributeString("rotZ", rz.ToString("G9", System.Globalization.CultureInfo.InvariantCulture));
-            w.WriteEndElement();
-        }
-
-        private static void WriteSetting(XmlWriter w, string id, string type, string label,
-            string min, string max, string defaultVal)
-        {
-            w.WriteStartElement("Setting");
-            w.WriteAttributeString("id",      id);
-            w.WriteAttributeString("type",    type);
-            w.WriteAttributeString("label",   label);
-            if (min != null) w.WriteAttributeString("min", min);
-            if (max != null) w.WriteAttributeString("max", max);
-            w.WriteAttributeString("default", defaultVal);
-            w.WriteEndElement();
+            File.WriteAllText(path, xml, new System.Text.UTF8Encoding(false));
         }
 
         private void DumpToCSV(string rootName)
