@@ -168,6 +168,7 @@ namespace MyMWCMod1
         private List<DrivetrainMonitor> _drivetrainMonitors  = new List<DrivetrainMonitor>();
         private List<PivotResetConfig>  _pivotResetConfigs   = new List<PivotResetConfig>();
         private SettingsKeybind _pivotResetKey;
+        private SettingsKeybind _pivotSaveKey;
         private FsmString _playerCurrentVehicle;
 
         private Dictionary<string, SettingsCheckBox> _checkboxSettings = new Dictionary<string, SettingsCheckBox>();
@@ -186,6 +187,7 @@ namespace MyMWCMod1
             EnsureXmlExists();
             LoadDrivetrainSettings();
             _pivotResetKey = Keybind.Add("pivotReset", "Reset Player Pivot", KeyCode.Backslash);
+            _pivotSaveKey  = Keybind.Add("savePivot",  "Save Player Pivot",  KeyCode.Backslash, KeyCode.LeftControl);
             Settings.AddButton("Dump CORRIS FSM to CSV",    () => DumpToCSV("CORRIS"));
             Settings.AddButton("Dump BACHGLOTZ FSM to CSV", () => DumpToCSV("BACHGLOTZ(1905kg)"));
         }
@@ -251,6 +253,7 @@ namespace MyMWCMod1
 
         private void Mod_Update()
         {
+            if (_pivotSaveKey.GetKeybindDown())  { SaveCurrentPivot();  return; }
             if (!_pivotResetKey.GetKeybindDown()) return;
 
             if (_playerCurrentVehicle == null)
@@ -275,6 +278,66 @@ namespace MyMWCMod1
             go.transform.localPosition    = config.LocalPosition;
             go.transform.localEulerAngles = config.LocalEulerAngles;
             ModConsole.Log("MyMWCMod1: PLAYER pivot reset for " + vehicle + ".");
+        }
+
+        private void SaveCurrentPivot()
+        {
+            if (_playerCurrentVehicle == null)
+                _playerCurrentVehicle = PlayMakerGlobals.Instance.Variables.FindFsmString("PlayerCurrentVehicle");
+            if (_playerCurrentVehicle == null) return;
+
+            string vehicle = _playerCurrentVehicle.Value;
+            PivotResetConfig config = null;
+            foreach (PivotResetConfig c in _pivotResetConfigs)
+                if (c.VehicleName == vehicle) { config = c; break; }
+
+            if (config == null)
+            {
+                ModConsole.Error("MyMWCMod1: No PivotReset config for vehicle '" + vehicle + "'.");
+                return;
+            }
+
+            GameObject go = GameObject.Find(config.GameObjectPath);
+            if (go == null)
+            {
+                ModConsole.Error("MyMWCMod1: PLAYER pivot GO not found for " + vehicle + ".");
+                return;
+            }
+
+            config.LocalPosition    = go.transform.localPosition;
+            config.LocalEulerAngles = go.transform.localEulerAngles;
+            UpdatePivotInXml(config);
+        }
+
+        private void UpdatePivotInXml(PivotResetConfig config)
+        {
+            string xmlPath = XmlPath;
+            XmlDocument doc = new XmlDocument();
+            doc.Load(xmlPath);
+
+            foreach (XmlNode monNode in doc.DocumentElement.ChildNodes)
+            {
+                if (monNode.NodeType != XmlNodeType.Element) continue;
+                XmlElement pivotEl = (XmlElement)((XmlElement)monNode).SelectSingleNode("PivotReset");
+                if (pivotEl == null || pivotEl.GetAttribute("vehicleName") != config.VehicleName) continue;
+
+                var ic = System.Globalization.CultureInfo.InvariantCulture;
+                pivotEl.SetAttribute("posX", config.LocalPosition.x.ToString("G9", ic));
+                pivotEl.SetAttribute("posY", config.LocalPosition.y.ToString("G9", ic));
+                pivotEl.SetAttribute("posZ", config.LocalPosition.z.ToString("G9", ic));
+                pivotEl.SetAttribute("rotX", config.LocalEulerAngles.x.ToString("G9", ic));
+                pivotEl.SetAttribute("rotY", config.LocalEulerAngles.y.ToString("G9", ic));
+                pivotEl.SetAttribute("rotZ", config.LocalEulerAngles.z.ToString("G9", ic));
+
+                XmlWriterSettings ws = new XmlWriterSettings { Indent = true, IndentChars = "  " };
+                using (XmlWriter w = XmlWriter.Create(xmlPath, ws))
+                    doc.Save(w);
+
+                ModConsole.Log("MyMWCMod1: Saved pivot for " + config.VehicleName + " to XML.");
+                return;
+            }
+
+            ModConsole.Error("MyMWCMod1: <PivotReset vehicleName=\"" + config.VehicleName + "\"> not found in XML.");
         }
 
         private void Mod_FixedUpdate()

@@ -51,7 +51,7 @@ MyMWCMod1/
   - `OnLoad` → `Mod_OnLoad`: calls `SetupMonitors()` (component + drivetrain + pivot reset monitors) — resolves game objects, FSM references, and the `PlayerCurrentVehicle` global FsmString
   - `Update` → `Mod_Update`: checks the configured keybind; reads `PlayerCurrentVehicle`; applies the matching pivot reset from XML config
   - `FixedUpdate` → `Mod_FixedUpdate`: applies wear reduction (`ComponentMonitor.ApplyReduction`) and drivetrain settings (`DrivetrainMonitor.Apply`) every physics tick
-  - `ModSettings` → `Mod_Settings`: registers in-game settings UI from XML, registers the `Reset Player Pivot` keybind, and adds CSV dump buttons
+  - `ModSettings` → `Mod_Settings`: registers in-game settings UI from XML, registers the `Reset Player Pivot` and `Save Player Pivot` keybinds, and adds CSV dump buttons
 
 ### Inner Classes
 
@@ -129,7 +129,8 @@ Types: `Float`, `Int`, `Bool`. FSMs with no variables emit `N/A`.
 | Shift Up RPM | `shiftUpRPM` | 3500 | 1000–8000 |
 | Shift Down RPM | `shiftDownRPM` | 1700 | 500–7000 |
 | Corris Engine can stall | `canStall` | false | checkbox |
-| Reset Player Pivot | `pivotReset` | `\` (Backslash) | keybind |
+| Reset Player Pivot | `pivotReset` | `\` (Backslash)      | keybind |
+| Save Player Pivot  | `savePivot`  | `Ctrl+\`            | keybind |
 
 ## Notes
 
