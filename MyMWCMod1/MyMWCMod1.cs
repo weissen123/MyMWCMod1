@@ -480,7 +480,7 @@ namespace MyMWCMod1
     <PivotReset vehicleName=""Taxi""
       playerPath=""JOBS/TAXIJOB/MACHTWAGEN/Functions/PlayerTrigger/DriverHeadPivot/CameraPivotPLR/Pivot/PLAYER""
       posX=""0.005122664"" posY=""-0.6894007"" posZ=""0.1324202""
-      rotX=""0"" rotY=""359.5581"" rotZ=""0""/>
+      rotX=""0"" rotY=""359.5581""  rotZ=""0""/>
   </Monitor>
 
   <Monitor label=""CORRIS"" path=""CORRIS"">
