@@ -453,23 +453,23 @@ namespace MyMWCMod1
 @"<?xml version=""1.0"" encoding=""utf-8""?>
 <!-- MyMWCMod1 monitor configuration. direction: Increases | Decreases. factor: 0.0-1.0 (0.01 = 1% of normal wear rate). -->
 <Monitors>
-  <Monitor label=""OilLevel"" path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Oilpan/Oilpan(VINXX)"" fsmName=""Data"" fsmFloat=""OilLevel"" direction=""Decreases"" factor=""0.0001"" />
-  <Monitor label=""BrakeFluidF"" path=""CORRIS/Assemblies/VINP_BrakeMasterCylinder/Brake Master Cylinder(VINXX)"" fsmName=""Data"" fsmFloat=""BrakeFluidF"" direction=""Decreases"" factor=""0.0001"" />
-  <Monitor label=""OilFiltDirt"" path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Oilfilter"" fsmName=""Data"" fsmFloat=""Dirt"" direction=""Increases"" factor=""0.01"" />
-  <Monitor label=""WearBulbL"" path=""CORRIS/Assemblies/VINP_HeadlightLeft/Head Light Assembly(VINXX)"" fsmName=""Data"" fsmFloat=""WearBulb"" direction=""Decreases"" factor=""0.01"" />
-  <Monitor label=""WearBulbR"" path=""CORRIS/Assemblies/VINP_HeadlightRight/Head Light Assembly(VINXX)"" fsmName=""Data"" fsmFloat=""WearBulb"" direction=""Decreases"" factor=""0.01"" />
-  <Monitor label=""SparkPlug1"" path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug1"" fsmName=""Data"" fsmFloat=""Wear"" direction=""Decreases"" factor=""0.01"" />
-  <Monitor label=""SparkPlug2"" path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug2"" fsmName=""Data"" fsmFloat=""Wear"" direction=""Decreases"" factor=""0.01"" />
-  <Monitor label=""SparkPlug3"" path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug3"" fsmName=""Data"" fsmFloat=""Wear"" direction=""Decreases"" factor=""0.01"" />
-  <Monitor label=""SparkPlug4"" path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug4"" fsmName=""Data"" fsmFloat=""Wear"" direction=""Decreases"" factor=""0.01"" />
-  <Monitor label=""Alternator"" path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Alternator"" fsmName=""Data"" fsmFloat=""Wear"" direction=""Decreases"" factor=""0.01"" />
-  <Monitor label=""Heaterbox"" path=""CORRIS/Assemblies/VINP_Heaterbox/Heater Box(VINXX)"" fsmName=""Data"" fsmFloat=""Wear"" direction=""Decreases"" factor=""0.01"" />
-  <Monitor label=""Waterpump"" path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Waterpump"" fsmName=""Data"" fsmFloat=""Wear"" direction=""Decreases"" factor=""0.01"" />
-  <Monitor label=""Headgasket"" path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Headgasket"" fsmName=""Data"" fsmFloat=""Wear"" direction=""Decreases"" factor=""0.01"" />
-  <Monitor label=""TimingBelt"" path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_TimingBelt"" fsmName=""Data"" fsmFloat=""Wear"" direction=""Decreases"" factor=""0.01"" />
-  <Monitor label=""FanBelt"" path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_FanBelt"" fsmName=""Data"" fsmFloat=""Wear"" direction=""Decreases"" factor=""0.01"" />
-  <Monitor label=""Oilpump"" path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Oilpump"" fsmName=""Data"" fsmFloat=""Wear"" direction=""Decreases"" factor=""0.01"" />
-  <Monitor label=""RearAxle"" path=""CORRIS/PhysicalAssemblies/REAR/AxleDamagePivot/RearWheelsStatic/WHEELc_RL/wheel_spindle_rl/VINP_RearAxle/Rear Axle (EB) (VINXX)"" fsmName=""Data"" fsmFloat=""Wear"" direction=""Decreases"" factor=""0.01"" />
+  <Monitor label=""OilLevel""    fsmName=""Data"" fsmFloat=""OilLevel""    direction=""Decreases"" factor=""0.0001"" path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Oilpan/Oilpan(VINXX)"" />
+  <Monitor label=""BrakeFluidF"" fsmName=""Data"" fsmFloat=""BrakeFluidF"" direction=""Decreases"" factor=""0.0001"" path=""CORRIS/Assemblies/VINP_BrakeMasterCylinder/Brake Master Cylinder(VINXX)"" />
+  <Monitor label=""OilFiltDirt"" fsmName=""Data"" fsmFloat=""Dirt""        direction=""Increases"" factor=""0.01""   path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Oilfilter"" />
+  <Monitor label=""WearBulbL""   fsmName=""Data"" fsmFloat=""WearBulb""    direction=""Decreases"" factor=""0.01""   path=""CORRIS/Assemblies/VINP_HeadlightLeft/Head Light Assembly(VINXX)"" />
+  <Monitor label=""WearBulbR""   fsmName=""Data"" fsmFloat=""WearBulb""    direction=""Decreases"" factor=""0.01""   path=""CORRIS/Assemblies/VINP_HeadlightRight/Head Light Assembly(VINXX)"" />
+  <Monitor label=""SparkPlug1""  fsmName=""Data"" fsmFloat=""Wear""        direction=""Decreases"" factor=""0.01""   path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug1"" />
+  <Monitor label=""SparkPlug2""  fsmName=""Data"" fsmFloat=""Wear""        direction=""Decreases"" factor=""0.01""   path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug2"" />
+  <Monitor label=""SparkPlug3""  fsmName=""Data"" fsmFloat=""Wear""        direction=""Decreases"" factor=""0.01""   path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug3"" />
+  <Monitor label=""SparkPlug4""  fsmName=""Data"" fsmFloat=""Wear""        direction=""Decreases"" factor=""0.01""   path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Cylinderhead/Cylinder Head(VINX0)/VINP_Sparkplug4"" />
+  <Monitor label=""Alternator""  fsmName=""Data"" fsmFloat=""Wear""        direction=""Decreases"" factor=""0.01""   path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Alternator"" />
+  <Monitor label=""Heaterbox""   fsmName=""Data"" fsmFloat=""Wear""        direction=""Decreases"" factor=""0.01""   path=""CORRIS/Assemblies/VINP_Heaterbox/Heater Box(VINXX)"" />
+  <Monitor label=""Waterpump""   fsmName=""Data"" fsmFloat=""Wear""        direction=""Decreases"" factor=""0.01""   path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Waterpump"" />
+  <Monitor label=""Headgasket""  fsmName=""Data"" fsmFloat=""Wear""        direction=""Decreases"" factor=""0.01""   path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Headgasket"" />
+  <Monitor label=""TimingBelt""  fsmName=""Data"" fsmFloat=""Wear""        direction=""Decreases"" factor=""0.01""   path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_TimingBelt"" />
+  <Monitor label=""FanBelt""     fsmName=""Data"" fsmFloat=""Wear""        direction=""Decreases"" factor=""0.01""   path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_FanBelt"" />
+  <Monitor label=""Oilpump""     fsmName=""Data"" fsmFloat=""Wear""        direction=""Decreases"" factor=""0.01""   path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Block/Engine Block(VINX0)/VINP_Oilpump"" />
+  <Monitor label=""RearAxle""    fsmName=""Data"" fsmFloat=""Wear""        direction=""Decreases"" factor=""0.01""   path=""CORRIS/PhysicalAssemblies/REAR/AxleDamagePivot/RearWheelsStatic/WHEELc_RL/wheel_spindle_rl/VINP_RearAxle/Rear Axle (EB) (VINXX)"" />
 
   <Monitor label=""MACHTWAGEN"" path=""JOBS/TAXIJOB/MACHTWAGEN"">
     <Drivetrain>
