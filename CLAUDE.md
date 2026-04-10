@@ -132,6 +132,13 @@ Types: `Float`, `Int`, `Bool`. FSMs with no variables emit `N/A`.
 | Reset Player Pivot | `pivotReset` | `\` (Backslash)      | keybind |
 | Save Player Pivot  | `savePivot`  | `Ctrl+\`            | keybind |
 
+## Coding Standards
+
+- **Short top-level methods.** Any method that handles multiple distinct cases must delegate each case to a named helper. The top-level method should read like an outline; detail lives in the helpers.
+- **Symmetrical control flow.** If one branch of a conditional ends with `continue`/`return`, parallel branches must do the same. Do not leave one branch inline while others delegate.
+- **Direct guards over indirect proxies.** Use the condition that names the actual reason (e.g. `if (pivotEl != null) continue`) rather than a secondary symptom (e.g. `if (string.IsNullOrEmpty(fsmName))`).
+- **No workarounds.** If a fix feels like a workaround, find the structurally correct solution before committing.
+
 ## Notes
 
 - Target framework is .NET 3.5 (Unity Full) — avoid APIs not available in this version
