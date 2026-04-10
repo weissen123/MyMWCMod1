@@ -348,6 +348,55 @@ namespace MyMWCMod1
                 m.Apply();
         }
 
+        private void SetupPivotReset(XmlElement pivotEl)
+        {
+            var ns = System.Globalization.NumberStyles.Float;
+            var ic = System.Globalization.CultureInfo.InvariantCulture;
+            float px, py, pz, rx, ry, rz;
+            float.TryParse(pivotEl.GetAttribute("posX"), ns, ic, out px);
+            float.TryParse(pivotEl.GetAttribute("posY"), ns, ic, out py);
+            float.TryParse(pivotEl.GetAttribute("posZ"), ns, ic, out pz);
+            float.TryParse(pivotEl.GetAttribute("rotX"), ns, ic, out rx);
+            float.TryParse(pivotEl.GetAttribute("rotY"), ns, ic, out ry);
+            float.TryParse(pivotEl.GetAttribute("rotZ"), ns, ic, out rz);
+            _pivotResetConfigs.Add(new PivotResetConfig
+            {
+                VehicleName      = pivotEl.GetAttribute("vehicleName"),
+                GameObjectPath   = pivotEl.GetAttribute("playerPath"),
+                LocalPosition    = new Vector3(px, py, pz),
+                LocalEulerAngles = new Vector3(rx, ry, rz),
+            });
+        }
+
+        private ComponentMonitor SetupComponentMonitor(XmlElement el, string label, string goPath)
+        {
+            string fsmName   = el.GetAttribute("fsmName");
+            string fsmFloat  = el.GetAttribute("fsmFloat");
+            string dirStr    = el.GetAttribute("direction");
+            string factorStr = el.GetAttribute("factor");
+
+            WearDirection direction = dirStr == "Increases"
+                ? WearDirection.Increases
+                : WearDirection.Decreases;
+
+            float factor;
+            if (!float.TryParse(factorStr, System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out factor))
+                factor = 0.01f;
+
+            FsmFloat fsmFloatVar = FindFsmFloat(goPath, fsmName, fsmFloat, label);
+            if (fsmFloatVar == null) return null;
+
+            return new ComponentMonitor
+            {
+                Label     = label,
+                Value     = fsmFloatVar,
+                Previous  = fsmFloatVar.Value,
+                Direction = direction,
+                Factor    = factor
+            };
+        }
+
         private void SetupDrivetrain(string path, string label, XmlElement drivetrainEl)
         {
             GameObject go = GameObject.Find(path);
@@ -436,77 +485,29 @@ namespace MyMWCMod1
         private List<ComponentMonitor> LoadMonitorsFromXml(string path)
         {
             var result = new List<ComponentMonitor>();
-
             XmlDocument doc = new XmlDocument();
             doc.Load(path);
 
-            XmlElement root = doc.DocumentElement; // <Monitors>
-
-            foreach (XmlNode node in root.ChildNodes)
+            foreach (XmlNode node in doc.DocumentElement.ChildNodes)
             {
                 if (node.NodeType != XmlNodeType.Element) continue;
                 XmlElement el = (XmlElement)node;
 
-                string label     = el.GetAttribute("label");
-                string goPath    = el.GetAttribute("path");
+                string label  = el.GetAttribute("label");
+                string goPath = el.GetAttribute("path");
 
                 bool isContainer = false;
 
                 XmlElement pivotEl = (XmlElement)el.SelectSingleNode("PivotReset");
-                if (pivotEl != null)
-                {
-                    float px, py, pz, rx, ry, rz;
-                    float.TryParse(pivotEl.GetAttribute("posX"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out px);
-                    float.TryParse(pivotEl.GetAttribute("posY"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out py);
-                    float.TryParse(pivotEl.GetAttribute("posZ"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out pz);
-                    float.TryParse(pivotEl.GetAttribute("rotX"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out rx);
-                    float.TryParse(pivotEl.GetAttribute("rotY"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out ry);
-                    float.TryParse(pivotEl.GetAttribute("rotZ"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out rz);
-                    _pivotResetConfigs.Add(new PivotResetConfig
-                    {
-                        VehicleName      = pivotEl.GetAttribute("vehicleName"),
-                        GameObjectPath   = pivotEl.GetAttribute("playerPath"),
-                        LocalPosition    = new Vector3(px, py, pz),
-                        LocalEulerAngles = new Vector3(rx, ry, rz),
-                    });
-                    isContainer = true;
-                }
+                if (pivotEl      != null) { SetupPivotReset(pivotEl);                    isContainer = true; }
 
                 XmlElement drivetrainEl = (XmlElement)el.SelectSingleNode("Drivetrain");
-                if (drivetrainEl != null)
-                {
-                    SetupDrivetrain(goPath, label, drivetrainEl);
-                    isContainer = true;
-                }
+                if (drivetrainEl != null) { SetupDrivetrain(goPath, label, drivetrainEl); isContainer = true; }
 
                 if (isContainer) continue;
 
-                string fsmName    = el.GetAttribute("fsmName");
-                string fsmFloat   = el.GetAttribute("fsmFloat");
-
-                string dirStr     = el.GetAttribute("direction");
-                string factorStr  = el.GetAttribute("factor");
-
-                WearDirection direction = dirStr == "Increases"
-                    ? WearDirection.Increases
-                    : WearDirection.Decreases;
-
-                float factor;
-                if (!float.TryParse(factorStr, System.Globalization.NumberStyles.Float,
-                        System.Globalization.CultureInfo.InvariantCulture, out factor))
-                    factor = 0.01f;
-
-                FsmFloat fsmFloatVar = FindFsmFloat(goPath, fsmName, fsmFloat, label);
-                if (fsmFloatVar == null) continue;
-
-                result.Add(new ComponentMonitor
-                {
-                    Label     = label,
-                    Value     = fsmFloatVar,
-                    Previous  = fsmFloatVar.Value,
-                    Direction = direction,
-                    Factor    = factor
-                });
+                ComponentMonitor monitor = SetupComponentMonitor(el, label, goPath);
+                if (monitor != null) result.Add(monitor);
             }
 
             return result;
