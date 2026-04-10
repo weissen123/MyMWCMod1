@@ -450,6 +450,8 @@ namespace MyMWCMod1
                 string label     = el.GetAttribute("label");
                 string goPath    = el.GetAttribute("path");
 
+                bool isContainer = false;
+
                 XmlElement pivotEl = (XmlElement)el.SelectSingleNode("PivotReset");
                 if (pivotEl != null)
                 {
@@ -467,20 +469,21 @@ namespace MyMWCMod1
                         LocalPosition    = new Vector3(px, py, pz),
                         LocalEulerAngles = new Vector3(rx, ry, rz),
                     });
+                    isContainer = true;
                 }
 
                 XmlElement drivetrainEl = (XmlElement)el.SelectSingleNode("Drivetrain");
                 if (drivetrainEl != null)
                 {
                     SetupDrivetrain(goPath, label, drivetrainEl);
-                    continue; // not an FSM monitor
+                    isContainer = true;
                 }
+
+                if (isContainer) continue;
 
                 string fsmName    = el.GetAttribute("fsmName");
                 string fsmFloat   = el.GetAttribute("fsmFloat");
 
-                if (string.IsNullOrEmpty(fsmName) || string.IsNullOrEmpty(fsmFloat))
-                    continue; // container-only monitor (e.g. PivotReset-only), no FSM to track
                 string dirStr     = el.GetAttribute("direction");
                 string factorStr  = el.GetAttribute("factor");
 
