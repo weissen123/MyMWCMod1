@@ -478,6 +478,9 @@ namespace MyMWCMod1
 
                 string fsmName    = el.GetAttribute("fsmName");
                 string fsmFloat   = el.GetAttribute("fsmFloat");
+
+                if (string.IsNullOrEmpty(fsmName) || string.IsNullOrEmpty(fsmFloat))
+                    continue; // container-only monitor (e.g. PivotReset-only), no FSM to track
                 string dirStr     = el.GetAttribute("direction");
                 string factorStr  = el.GetAttribute("factor");
 
