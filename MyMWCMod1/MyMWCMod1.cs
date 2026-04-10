@@ -253,9 +253,12 @@ namespace MyMWCMod1
 
         private void Mod_Update()
         {
-            if (_pivotSaveKey.GetKeybindDown())  { SaveCurrentPivot();  return; }
-            if (!_pivotResetKey.GetKeybindDown()) return;
+            if (_pivotSaveKey.GetKeybindDown())   { SaveCurrentPivot();  return; }
+            if (_pivotResetKey.GetKeybindDown())  { ResetCurrentPivot(); return; }
+        }
 
+        private void ResetCurrentPivot()
+        {
             if (_playerCurrentVehicle == null)
                 _playerCurrentVehicle = PlayMakerGlobals.Instance.Variables.FindFsmString("PlayerCurrentVehicle");
 
@@ -268,7 +271,7 @@ namespace MyMWCMod1
             GameObject go = GameObject.Find(config.GameObjectPath);
             if (go == null)
             {
-                ModConsole.Error("MyMWCMod1: Backslash pressed but PLAYER pivot not found for " + vehicle + ".");
+                ModConsole.Log("MyMWCMod1: PLAYER pivot not found for " + vehicle + ".");
                 return;
             }
 
