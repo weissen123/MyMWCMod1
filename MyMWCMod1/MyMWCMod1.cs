@@ -262,10 +262,7 @@ namespace MyMWCMod1
             if (_playerCurrentVehicle == null) return;
 
             string vehicle = _playerCurrentVehicle.Value;
-            PivotResetConfig config = null;
-            foreach (PivotResetConfig c in _pivotResetConfigs)
-                if (c.VehicleName == vehicle) { config = c; break; }
-
+            PivotResetConfig config = FindPivotConfig(vehicle);
             if (config == null) return;
 
             GameObject go = GameObject.Find(config.GameObjectPath);
@@ -287,10 +284,7 @@ namespace MyMWCMod1
             if (_playerCurrentVehicle == null) return;
 
             string vehicle = _playerCurrentVehicle.Value;
-            PivotResetConfig config = null;
-            foreach (PivotResetConfig c in _pivotResetConfigs)
-                if (c.VehicleName == vehicle) { config = c; break; }
-
+            PivotResetConfig config = FindPivotConfig(vehicle);
             if (config == null)
             {
                 ModConsole.Error("MyMWCMod1: No PivotReset config for vehicle '" + vehicle + "'.");
@@ -319,7 +313,9 @@ namespace MyMWCMod1
             {
                 if (monNode.NodeType != XmlNodeType.Element) continue;
                 XmlElement pivotEl = (XmlElement)((XmlElement)monNode).SelectSingleNode("PivotReset");
-                if (pivotEl == null || pivotEl.GetAttribute("vehicleName") != config.VehicleName) continue;
+                if (pivotEl == null) continue;
+                if (pivotEl.GetAttribute("vehicleName") != config.VehicleName)   continue;
+                if (pivotEl.GetAttribute("playerPath")  != config.GameObjectPath) continue;
 
                 var ic = System.Globalization.CultureInfo.InvariantCulture;
                 pivotEl.SetAttribute("posX", config.LocalPosition.x.ToString("G9", ic));
@@ -338,6 +334,14 @@ namespace MyMWCMod1
             }
 
             ModConsole.Error("MyMWCMod1: <PivotReset vehicleName=\"" + config.VehicleName + "\"> not found in XML.");
+        }
+
+        private PivotResetConfig FindPivotConfig(string vehicleName)
+        {
+            foreach (PivotResetConfig c in _pivotResetConfigs)
+                if (c.VehicleName == vehicleName && GameObject.Find(c.GameObjectPath) != null)
+                    return c;
+            return null;
         }
 
         private void Mod_FixedUpdate()
@@ -565,6 +569,20 @@ namespace MyMWCMod1
       playerPath=""CORRIS/Functions/DriverHeadPivot/CameraPivotPLR/SeatPivot/PLAYER""
       posX=""-0.01190625"" posY=""-0.6566017"" posZ=""0.2135472""
       rotX=""0""           rotY=""0.6978999""  rotZ=""0""/>
+  </Monitor>
+
+  <Monitor label=""GIFU(650/350psi)"" path=""GIFU(650/350psi)"">
+    <PivotReset vehicleName=""Gifu""
+      playerPath=""GIFU(650/350psi)/LOD/DriverHeadPivot/CameraPivotPLR/Pivot/PLAYER""
+      posX=""-0.0178838093"" posY=""-0.416051507"" posZ=""0.0354102328""
+      rotX=""0""             rotY=""0.258155435""  rotZ=""0""/>
+  </Monitor>
+
+  <Monitor label=""GIFU(750/450psi)"" path=""GIFU(750/450psi)"">
+    <PivotReset vehicleName=""Gifu""
+      playerPath=""GIFU(750/450psi)/LOD/DriverHeadPivot/CameraPivotPLR/Pivot/PLAYER""
+      posX=""-0.0178838093"" posY=""-0.416051507"" posZ=""0.0354102328""
+      rotX=""0""             rotY=""0.258155435""  rotZ=""0""/>
   </Monitor>
 </Monitors>";
 
