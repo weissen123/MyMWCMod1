@@ -132,6 +132,10 @@ Types: `Float`, `Int`, `Bool`. FSMs with no variables emit `N/A`.
 | Reset Player Pivot | `pivotReset` | `\` (Backslash)      | keybind |
 | Save Player Pivot  | `savePivot`  | `Ctrl+\`            | keybind |
 
+## Working Style
+
+- **Self-enforce standards without prompting.** When the user corrects an approach or states a preference, apply it immediately and add it to `CLAUDE.md` in the same commit — do not wait to be asked.
+
 ## Coding Standards
 
 - **Short top-level methods.** Any method that handles multiple distinct cases must delegate each case to a named helper. The top-level method should read like an outline; detail lives in the helpers.
