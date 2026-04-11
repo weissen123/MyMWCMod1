@@ -295,7 +295,7 @@ namespace MyMWCMod1
 
             public string     Label;
             public Drivetrain Drivetrain;
-            public readonly List<DrivetrainBoolSetting> BoolSettings = new List<DrivetrainBoolSetting>();
+            private readonly List<DrivetrainBoolSetting> BoolSettings = new List<DrivetrainBoolSetting>();
 
             private static readonly List<DrivetrainMonitor>                       _instances        = new List<DrivetrainMonitor>();
             private static readonly Dictionary<string, SettingsCheckBox>          _checkboxSettings = new Dictionary<string, SettingsCheckBox>();
