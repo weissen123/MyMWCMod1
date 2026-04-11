@@ -297,9 +297,21 @@ namespace MyMWCMod1
             public Drivetrain Drivetrain;
             public readonly List<DrivetrainBoolSetting> BoolSettings = new List<DrivetrainBoolSetting>();
 
-            private static readonly List<DrivetrainMonitor>              _instances        = new List<DrivetrainMonitor>();
-            private static readonly Dictionary<string, SettingsCheckBox> _checkboxSettings = new Dictionary<string, SettingsCheckBox>();
-            private static readonly Dictionary<string, SettingsSlider>   _sliderSettings   = new Dictionary<string, SettingsSlider>();
+            private static readonly List<DrivetrainMonitor>                       _instances        = new List<DrivetrainMonitor>();
+            private static readonly Dictionary<string, SettingsCheckBox>          _checkboxSettings = new Dictionary<string, SettingsCheckBox>();
+            private static readonly Dictionary<string, SettingsSlider>            _sliderSettings   = new Dictionary<string, SettingsSlider>();
+            private static readonly Dictionary<string, Action<Drivetrain, bool>>  _boolSetters
+                = new Dictionary<string, Action<Drivetrain, bool>>
+                {
+                    { "autoTransmission", (d, v) => d.automatic = v },
+                    { "canStall",         (d, v) => d.canStall  = v },
+                };
+            private static readonly Dictionary<string, Action<Drivetrain, float>> _floatSetters
+                = new Dictionary<string, Action<Drivetrain, float>>
+                {
+                    { "shiftUpRPM",   (d, v) => d.shiftUpRPM   = v },
+                    { "shiftDownRPM", (d, v) => d.shiftDownRPM = v },
+                };
 
             public static void Add(DrivetrainMonitor monitor) { _instances.Add(monitor); }
 
@@ -388,7 +400,7 @@ namespace MyMWCMod1
                 SettingsSlider            slider;
                 Action<Drivetrain, float> setter;
                 if (_sliderSettings.TryGetValue(id, out slider) &&
-                    _drivetrainFloatSetters.TryGetValue(id, out setter))
+                    _floatSetters.TryGetValue(id, out setter))
                     setter(Drivetrain, (float)slider.GetValue());
             }
 
@@ -397,7 +409,7 @@ namespace MyMWCMod1
                 SettingsCheckBox         cb;
                 Action<Drivetrain, bool> setter;
                 if (!_checkboxSettings.TryGetValue(id, out cb) ||
-                    !_drivetrainBoolSetters.TryGetValue(id, out setter)) return;
+                    !_boolSetters.TryGetValue(id, out setter)) return;
 
                 XmlNodeList condNodes = s.SelectNodes("Condition");
                 if (condNodes.Count == 0) { setter(Drivetrain, cb.GetValue()); return; }
@@ -497,22 +509,6 @@ namespace MyMWCMod1
                 return path;
             }
         }
-
-        // Maps XML setting id → Drivetrain bool property setter
-        private static readonly Dictionary<string, Action<Drivetrain, bool>> _drivetrainBoolSetters
-            = new Dictionary<string, Action<Drivetrain, bool>>
-            {
-                { "autoTransmission", (d, v) => d.automatic = v },
-                { "canStall",         (d, v) => d.canStall  = v },
-            };
-
-        // Maps XML setting id → Drivetrain float property setter
-        private static readonly Dictionary<string, Action<Drivetrain, float>> _drivetrainFloatSetters
-            = new Dictionary<string, Action<Drivetrain, float>>
-            {
-                { "shiftUpRPM",   (d, v) => d.shiftUpRPM   = v },
-                { "shiftDownRPM", (d, v) => d.shiftDownRPM = v },
-            };
 
         private SettingsKeybind _pivotResetKey;
         private SettingsKeybind _pivotSaveKey;
