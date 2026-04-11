@@ -142,6 +142,10 @@ Types: `Float`, `Int`, `Bool`. FSMs with no variables emit `N/A`.
 - **Symmetrical control flow.** If one branch of a conditional ends with `continue`/`return`, parallel branches must do the same. Do not leave one branch inline while others delegate.
 - **Direct guards over indirect proxies.** Use the condition that names the actual reason (e.g. `if (pivotEl != null) continue`) rather than a secondary symptom (e.g. `if (string.IsNullOrEmpty(fsmName))`).
 - **No workarounds.** If a fix feels like a workaround, find the structurally correct solution before committing.
+- **Inner classes own their operations, not just their data.** A class that holds data is responsible for the operations on that data. Do not reach into it from the outside to do work on its behalf — move those methods onto the class itself.
+- **Eliminate dispatcher methods.** A method that does nothing but call a single method on another class adds no value. Once logic lives on the right class, remove the wrapper.
+- **Inject dependencies via Init, not outer-class coupling.** When an inner class needs external state (lists, paths, global strings), inject it once through a dedicated static `Init()` method. The inner class must not reference the outer class instance.
+- **Cache results of work already done.** If a helper performs a lookup as part of its own logic, store the result on the object rather than discarding it and repeating the lookup in every caller.
 
 ## Notes
 
