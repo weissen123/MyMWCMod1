@@ -76,31 +76,24 @@ namespace MyMWCMod1
 
             public static void ResetCurrentPivot()
             {
-                WithCurrentGO((config, go) =>
-                {
-                    go.transform.localPosition    = config.LocalPosition;
-                    go.transform.localEulerAngles = config.LocalEulerAngles;
-                    ModConsole.Log("MyMWCMod1: PLAYER pivot reset for " + config.VehicleName + ".");
-                });
+                PivotResetConfig config = Resolve();
+                if (config == null) return;
+                GameObject go = GameObject.Find(config.GameObjectPath);
+                if (go == null) { ModConsole.Log("MyMWCMod1: PLAYER pivot not found for " + config.VehicleName + "."); return; }
+                go.transform.localPosition    = config.LocalPosition;
+                go.transform.localEulerAngles = config.LocalEulerAngles;
+                ModConsole.Log("MyMWCMod1: PLAYER pivot reset for " + config.VehicleName + ".");
             }
 
             public static void SaveCurrentPivot()
             {
-                WithCurrentGO((config, go) =>
-                {
-                    config.LocalPosition    = go.transform.localPosition;
-                    config.LocalEulerAngles = go.transform.localEulerAngles;
-                    config.WriteToXml();
-                });
-            }
-
-            private static void WithCurrentGO(Action<PivotResetConfig, GameObject> action)
-            {
                 PivotResetConfig config = Resolve();
                 if (config == null) return;
                 GameObject go = GameObject.Find(config.GameObjectPath);
-                if (go == null) { ModConsole.Log("MyMWCMod1: PLAYER pivot GO not found for " + config.VehicleName + "."); return; }
-                action(config, go);
+                if (go == null) { ModConsole.Error("MyMWCMod1: PLAYER pivot GO not found for " + config.VehicleName + "."); return; }
+                config.LocalPosition    = go.transform.localPosition;
+                config.LocalEulerAngles = go.transform.localEulerAngles;
+                config.WriteToXml();
             }
 
             private static PivotResetConfig Resolve()
