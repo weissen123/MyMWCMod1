@@ -135,6 +135,7 @@ Types: `Float`, `Int`, `Bool`. FSMs with no variables emit `N/A`.
 ## Working Style
 
 - **Self-enforce standards without prompting.** When the user corrects an approach or states a preference, apply it immediately and add it to `CLAUDE.md` in the same commit — do not wait to be asked.
+- **"Make plan" always means plan mode.** When the user asks for a plan, write it to the plan file and call `ExitPlanMode` before implementing anything — regardless of whether a plan mode session is active.
 
 ## Coding Standards
 
