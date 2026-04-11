@@ -74,14 +74,18 @@ namespace MyMWCMod1
                     ModConsole.Error("MyMWCMod1: Could not find global FsmString 'PlayerCurrentVehicle'.");
             }
 
-            public static void ResetCurrentPivot() { Resolve()?.Apply(); }
-
-            public static void SaveCurrentPivot()
+            public static void ResetCurrentPivot()
             {
                 PivotResetConfig config = Resolve();
                 if (config == null) return;
-                if (config.Capture()) WriteToXml(config);
+                GameObject go = GameObject.Find(config.GameObjectPath);
+                if (go == null) { ModConsole.Log("MyMWCMod1: PLAYER pivot not found for " + config.VehicleName + "."); return; }
+                go.transform.localPosition    = config.LocalPosition;
+                go.transform.localEulerAngles = config.LocalEulerAngles;
+                ModConsole.Log("MyMWCMod1: PLAYER pivot reset for " + config.VehicleName + ".");
             }
+
+            public static void SaveCurrentPivot() { Resolve()?.Capture()?.WriteToXml(); }
 
             private static PivotResetConfig Resolve()
             {
@@ -95,25 +99,16 @@ namespace MyMWCMod1
                 return null;
             }
 
-            private void Apply()
+            private PivotResetConfig Capture()
             {
                 GameObject go = GameObject.Find(GameObjectPath);
-                if (go == null) { ModConsole.Log("MyMWCMod1: PLAYER pivot not found for " + VehicleName + "."); return; }
-                go.transform.localPosition    = LocalPosition;
-                go.transform.localEulerAngles = LocalEulerAngles;
-                ModConsole.Log("MyMWCMod1: PLAYER pivot reset for " + VehicleName + ".");
-            }
-
-            private bool Capture()
-            {
-                GameObject go = GameObject.Find(GameObjectPath);
-                if (go == null) { ModConsole.Error("MyMWCMod1: PLAYER pivot GO not found for " + VehicleName + "."); return false; }
+                if (go == null) { ModConsole.Error("MyMWCMod1: PLAYER pivot GO not found for " + VehicleName + "."); return null; }
                 LocalPosition    = go.transform.localPosition;
                 LocalEulerAngles = go.transform.localEulerAngles;
-                return true;
+                return this;
             }
 
-            private static void WriteToXml(PivotResetConfig config)
+            private void WriteToXml()
             {
                 XmlDocument doc = new XmlDocument();
                 doc.Load(_xmlPath);
@@ -123,26 +118,26 @@ namespace MyMWCMod1
                     if (monNode.NodeType != XmlNodeType.Element) continue;
                     XmlElement pivotEl = (XmlElement)((XmlElement)monNode).SelectSingleNode("PivotReset");
                     if (pivotEl == null) continue;
-                    if (pivotEl.GetAttribute("vehicleName") != config.VehicleName)   continue;
-                    if (pivotEl.GetAttribute("playerPath")  != config.GameObjectPath) continue;
+                    if (pivotEl.GetAttribute("vehicleName") != VehicleName)   continue;
+                    if (pivotEl.GetAttribute("playerPath")  != GameObjectPath) continue;
 
                     var ic = System.Globalization.CultureInfo.InvariantCulture;
-                    pivotEl.SetAttribute("posX", config.LocalPosition.x.ToString("G9", ic));
-                    pivotEl.SetAttribute("posY", config.LocalPosition.y.ToString("G9", ic));
-                    pivotEl.SetAttribute("posZ", config.LocalPosition.z.ToString("G9", ic));
-                    pivotEl.SetAttribute("rotX", config.LocalEulerAngles.x.ToString("G9", ic));
-                    pivotEl.SetAttribute("rotY", config.LocalEulerAngles.y.ToString("G9", ic));
-                    pivotEl.SetAttribute("rotZ", config.LocalEulerAngles.z.ToString("G9", ic));
+                    pivotEl.SetAttribute("posX", LocalPosition.x.ToString("G9", ic));
+                    pivotEl.SetAttribute("posY", LocalPosition.y.ToString("G9", ic));
+                    pivotEl.SetAttribute("posZ", LocalPosition.z.ToString("G9", ic));
+                    pivotEl.SetAttribute("rotX", LocalEulerAngles.x.ToString("G9", ic));
+                    pivotEl.SetAttribute("rotY", LocalEulerAngles.y.ToString("G9", ic));
+                    pivotEl.SetAttribute("rotZ", LocalEulerAngles.z.ToString("G9", ic));
 
                     XmlWriterSettings ws = new XmlWriterSettings { Indent = true, IndentChars = "  " };
                     using (XmlWriter w = XmlWriter.Create(_xmlPath, ws))
                         doc.Save(w);
 
-                    ModConsole.Log("MyMWCMod1: Saved pivot for " + config.VehicleName + " to XML.");
+                    ModConsole.Log("MyMWCMod1: Saved pivot for " + VehicleName + " to XML.");
                     return;
                 }
 
-                ModConsole.Error("MyMWCMod1: <PivotReset vehicleName=\"" + config.VehicleName + "\"> not found in XML.");
+                ModConsole.Error("MyMWCMod1: <PivotReset vehicleName=\"" + VehicleName + "\"> not found in XML.");
             }
         }
 
