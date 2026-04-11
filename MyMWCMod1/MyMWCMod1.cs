@@ -313,7 +313,7 @@ namespace MyMWCMod1
                     { "shiftDownRPM", (d, v) => d.shiftDownRPM = v },
                 };
 
-            public static void Add(DrivetrainMonitor monitor) { _instances.Add(monitor); }
+            public static void Add(DrivetrainMonitor monitor) { if (monitor != null) _instances.Add(monitor); }
 
             public static void ApplyAll()
             {
@@ -578,13 +578,16 @@ namespace MyMWCMod1
                 bool isContainer = false;
 
                 XmlElement pivotEl = (XmlElement)el.SelectSingleNode("PivotReset");
-                if (pivotEl != null) { PivotResetConfig.Add(PivotResetConfig.LoadFromXml(pivotEl)); isContainer = true; }
+                if (pivotEl != null)
+                {
+                    PivotResetConfig.Add(PivotResetConfig.LoadFromXml(pivotEl));
+                    isContainer = true;
+                }
 
                 XmlElement drivetrainEl = (XmlElement)el.SelectSingleNode("Drivetrain");
                 if (drivetrainEl != null)
                 {
-                    DrivetrainMonitor dtMonitor = DrivetrainMonitor.LoadFromXml(goPath, label, drivetrainEl);
-                    if (dtMonitor != null) DrivetrainMonitor.Add(dtMonitor);
+                    DrivetrainMonitor.Add(DrivetrainMonitor.LoadFromXml(goPath, label, drivetrainEl));
                     isContainer = true;
                 }
 
