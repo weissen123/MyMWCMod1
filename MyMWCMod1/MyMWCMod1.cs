@@ -85,7 +85,16 @@ namespace MyMWCMod1
                 ModConsole.Log("MyMWCMod1: PLAYER pivot reset for " + config.VehicleName + ".");
             }
 
-            public static void SaveCurrentPivot() { Resolve()?.Capture()?.WriteToXml(); }
+            public static void SaveCurrentPivot()
+            {
+                PivotResetConfig config = Resolve();
+                if (config == null) return;
+                GameObject go = GameObject.Find(config.GameObjectPath);
+                if (go == null) { ModConsole.Error("MyMWCMod1: PLAYER pivot GO not found for " + config.VehicleName + "."); return; }
+                config.LocalPosition    = go.transform.localPosition;
+                config.LocalEulerAngles = go.transform.localEulerAngles;
+                config.WriteToXml();
+            }
 
             private static PivotResetConfig Resolve()
             {
@@ -97,15 +106,6 @@ namespace MyMWCMod1
                     if (c.VehicleName == name && GameObject.Find(c.GameObjectPath) != null)
                         return c;
                 return null;
-            }
-
-            private PivotResetConfig Capture()
-            {
-                GameObject go = GameObject.Find(GameObjectPath);
-                if (go == null) { ModConsole.Error("MyMWCMod1: PLAYER pivot GO not found for " + VehicleName + "."); return null; }
-                LocalPosition    = go.transform.localPosition;
-                LocalEulerAngles = go.transform.localEulerAngles;
-                return this;
             }
 
             private void WriteToXml()
