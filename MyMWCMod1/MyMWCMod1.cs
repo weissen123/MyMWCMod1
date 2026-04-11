@@ -235,14 +235,48 @@ namespace MyMWCMod1
             public Drivetrain Drivetrain;
             public readonly List<DrivetrainBoolSetting> BoolSettings = new List<DrivetrainBoolSetting>();
 
-            private static Dictionary<string, SettingsCheckBox> _checkboxSettings;
-            private static Dictionary<string, SettingsSlider>   _sliderSettings;
+            private static readonly Dictionary<string, SettingsCheckBox> _checkboxSettings = new Dictionary<string, SettingsCheckBox>();
+            private static readonly Dictionary<string, SettingsSlider>   _sliderSettings   = new Dictionary<string, SettingsSlider>();
 
-            public static void Init(Dictionary<string, SettingsCheckBox> checkboxSettings,
-                                    Dictionary<string, SettingsSlider>   sliderSettings)
+            public static void RegisterSettings(string xmlPath)
             {
-                _checkboxSettings = checkboxSettings;
-                _sliderSettings   = sliderSettings;
+                XmlDocument doc = new XmlDocument();
+                doc.Load(xmlPath);
+
+                foreach (XmlNode monNode in doc.DocumentElement.ChildNodes)
+                {
+                    if (monNode.NodeType != XmlNodeType.Element) continue;
+                    XmlElement drivetrainEl = (XmlElement)((XmlElement)monNode).SelectSingleNode("Drivetrain");
+                    if (drivetrainEl == null) continue;
+
+                    foreach (XmlNode settingNode in drivetrainEl.ChildNodes)
+                    {
+                        if (settingNode.NodeType != XmlNodeType.Element) continue;
+                        XmlElement s    = (XmlElement)settingNode;
+                        string     id   = s.GetAttribute("id");
+                        string     type = s.GetAttribute("type");
+                        if (type == "checkbox") { RegisterCheckboxSetting(s, id); continue; }
+                        if (type == "slider")   { RegisterSliderSetting(s, id);   continue; }
+                    }
+                }
+            }
+
+            private static void RegisterCheckboxSetting(XmlElement s, string id)
+            {
+                bool defBool;
+                bool.TryParse(s.GetAttribute("default"), out defBool);
+                _checkboxSettings[id] = Settings.AddCheckBox(id, s.GetAttribute("label"), defBool);
+            }
+
+            private static void RegisterSliderSetting(XmlElement s, string id)
+            {
+                var ns = System.Globalization.NumberStyles.Float;
+                var ic = System.Globalization.CultureInfo.InvariantCulture;
+                float min, max, def;
+                float.TryParse(s.GetAttribute("min"),     ns, ic, out min);
+                float.TryParse(s.GetAttribute("max"),     ns, ic, out max);
+                float.TryParse(s.GetAttribute("default"), ns, ic, out def);
+                _sliderSettings[id] = Settings.AddSlider(id, s.GetAttribute("label"), min, max, def);
             }
 
             public static DrivetrainMonitor LoadFromXml(string path, string label, XmlElement drivetrainEl)
@@ -347,9 +381,6 @@ namespace MyMWCMod1
         private SettingsKeybind _pivotResetKey;
         private SettingsKeybind _pivotSaveKey;
 
-        private Dictionary<string, SettingsCheckBox> _checkboxSettings = new Dictionary<string, SettingsCheckBox>();
-        private Dictionary<string, SettingsSlider>   _sliderSettings   = new Dictionary<string, SettingsSlider>();
-
         public override void ModSetup()
         {
             SetupFunction(Setup.OnLoad, Mod_OnLoad);
@@ -361,7 +392,7 @@ namespace MyMWCMod1
         private void Mod_Settings()
         {
             EnsureXmlExists();
-            LoadDrivetrainSettings();
+            DrivetrainMonitor.RegisterSettings(XmlPath);
             _pivotResetKey = Keybind.Add("pivotReset", "Reset Player Pivot", KeyCode.Backslash);
             _pivotSaveKey  = Keybind.Add("savePivot",  "Save Player Pivot",  KeyCode.Backslash, KeyCode.LeftControl);
             Settings.AddButton("Dump CORRIS FSM to CSV",    () => DumpToCSV("CORRIS"));
@@ -378,50 +409,8 @@ namespace MyMWCMod1
             }
         }
 
-        private void LoadDrivetrainSettings()
-        {
-            XmlDocument doc = new XmlDocument();
-            doc.Load(XmlPath);
-
-            foreach (XmlNode monNode in doc.DocumentElement.ChildNodes)
-            {
-                if (monNode.NodeType != XmlNodeType.Element) continue;
-                XmlElement monEl = (XmlElement)monNode;
-
-                XmlElement drivetrainEl = (XmlElement)monEl.SelectSingleNode("Drivetrain");
-                if (drivetrainEl == null) continue;
-
-                foreach (XmlNode settingNode in drivetrainEl.ChildNodes)
-                {
-                    if (settingNode.NodeType != XmlNodeType.Element) continue;
-                    XmlElement s = (XmlElement)settingNode;
-
-                    string id       = s.GetAttribute("id");
-                    string type     = s.GetAttribute("type");
-                    string label    = s.GetAttribute("label");
-                    string defVal   = s.GetAttribute("default");
-
-                    if (type == "checkbox")
-                    {
-                        bool defBool;
-                        bool.TryParse(defVal, out defBool);
-                        _checkboxSettings[id] = Settings.AddCheckBox(id, label, defBool);
-                    }
-                    else if (type == "slider")
-                    {
-                        float min, max, def;
-                        float.TryParse(s.GetAttribute("min"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out min);
-                        float.TryParse(s.GetAttribute("max"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out max);
-                        float.TryParse(defVal,                System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out def);
-                        _sliderSettings[id] = Settings.AddSlider(id, label, min, max, def);
-                    }
-                }
-            }
-        }
-
         private void Mod_OnLoad()
         {
-            DrivetrainMonitor.Init(_checkboxSettings, _sliderSettings);
             SetupMonitors();
             PivotResetConfig.Init(_pivotResetConfigs, XmlPath);
         }
