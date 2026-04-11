@@ -103,6 +103,16 @@ namespace MyMWCMod1
                 ModConsole.Error($"FAILED TO FIND FsmFloat '{floatName}' in any FSM '{fsmName}' on {logLabel}!!!");
                 return null;
             }
+
+            private static readonly List<ComponentMonitor> _instances = new List<ComponentMonitor>();
+
+            public static void Add(ComponentMonitor monitor) { _instances.Add(monitor); }
+
+            public static void ApplyAll()
+            {
+                foreach (ComponentMonitor m in _instances)
+                    m.ApplyReduction();
+            }
         }
 
         private class PivotResetConfig
@@ -114,13 +124,14 @@ namespace MyMWCMod1
 
             private GameObject ActiveGO; // set by Resolve(); guaranteed non-null when config is non-null
 
-            private static List<PivotResetConfig> _configs;
-            private static FsmString              _vehicleString;
-            private static string                 _xmlPath;
+            private static readonly List<PivotResetConfig> _configs = new List<PivotResetConfig>();
+            private static FsmString                        _vehicleString;
+            private static string                           _xmlPath;
 
-            public static void Init(List<PivotResetConfig> configs, string xmlPath)
+            public static void Add(PivotResetConfig config) { _configs.Add(config); }
+
+            public static void Init(string xmlPath)
             {
-                _configs       = configs;
                 _xmlPath       = xmlPath;
                 _vehicleString = PlayMakerGlobals.Instance.Variables.FindFsmString("PlayerCurrentVehicle");
                 if (_vehicleString == null)
@@ -286,8 +297,17 @@ namespace MyMWCMod1
             public Drivetrain Drivetrain;
             public readonly List<DrivetrainBoolSetting> BoolSettings = new List<DrivetrainBoolSetting>();
 
+            private static readonly List<DrivetrainMonitor>              _instances        = new List<DrivetrainMonitor>();
             private static readonly Dictionary<string, SettingsCheckBox> _checkboxSettings = new Dictionary<string, SettingsCheckBox>();
             private static readonly Dictionary<string, SettingsSlider>   _sliderSettings   = new Dictionary<string, SettingsSlider>();
+
+            public static void Add(DrivetrainMonitor monitor) { _instances.Add(monitor); }
+
+            public static void ApplyAll()
+            {
+                foreach (DrivetrainMonitor m in _instances)
+                    m.Apply();
+            }
 
             public static void RegisterSettings(string xmlPath)
             {
@@ -494,9 +514,6 @@ namespace MyMWCMod1
                 { "shiftDownRPM", (d, v) => d.shiftDownRPM = v },
             };
 
-        private List<ComponentMonitor>  _monitors           = new List<ComponentMonitor>();
-        private List<DrivetrainMonitor> _drivetrainMonitors = new List<DrivetrainMonitor>();
-        private List<PivotResetConfig>  _pivotResetConfigs  = new List<PivotResetConfig>();
         private SettingsKeybind _pivotResetKey;
         private SettingsKeybind _pivotSaveKey;
 
@@ -531,7 +548,7 @@ namespace MyMWCMod1
         private void Mod_OnLoad()
         {
             SetupMonitors();
-            PivotResetConfig.Init(_pivotResetConfigs, XmlPath);
+            PivotResetConfig.Init(XmlPath);
         }
 
         private void Mod_Update()
@@ -542,10 +559,8 @@ namespace MyMWCMod1
 
         private void Mod_FixedUpdate()
         {
-            foreach (ComponentMonitor m in _monitors)
-                m.ApplyReduction();
-            foreach (DrivetrainMonitor m in _drivetrainMonitors)
-                m.Apply();
+            ComponentMonitor.ApplyAll();
+            DrivetrainMonitor.ApplyAll();
         }
 
         private void SetupMonitors()
@@ -555,6 +570,7 @@ namespace MyMWCMod1
             XmlDocument doc = new XmlDocument();
             doc.Load(xmlPath);
 
+            int componentCount = 0;
             foreach (XmlNode node in doc.DocumentElement.ChildNodes)
             {
                 if (node.NodeType != XmlNodeType.Element) continue;
@@ -566,23 +582,23 @@ namespace MyMWCMod1
                 bool isContainer = false;
 
                 XmlElement pivotEl = (XmlElement)el.SelectSingleNode("PivotReset");
-                if (pivotEl != null) { _pivotResetConfigs.Add(PivotResetConfig.LoadFromXml(pivotEl)); isContainer = true; }
+                if (pivotEl != null) { PivotResetConfig.Add(PivotResetConfig.LoadFromXml(pivotEl)); isContainer = true; }
 
                 XmlElement drivetrainEl = (XmlElement)el.SelectSingleNode("Drivetrain");
                 if (drivetrainEl != null)
                 {
                     DrivetrainMonitor dtMonitor = DrivetrainMonitor.LoadFromXml(goPath, label, drivetrainEl);
-                    if (dtMonitor != null) _drivetrainMonitors.Add(dtMonitor);
+                    if (dtMonitor != null) DrivetrainMonitor.Add(dtMonitor);
                     isContainer = true;
                 }
 
                 if (isContainer) continue;
 
                 ComponentMonitor monitor = ComponentMonitor.LoadFromXml(el, label, goPath);
-                if (monitor != null) _monitors.Add(monitor);
+                if (monitor != null) { ComponentMonitor.Add(monitor); componentCount++; }
             }
 
-            ModConsole.Log("MyMWCMod1: Loaded " + _monitors.Count + " monitors from " + xmlPath);
+            ModConsole.Log("MyMWCMod1: Loaded " + componentCount + " component monitors from " + xmlPath);
         }
 
         private void WriteDefaultXml(string path)
