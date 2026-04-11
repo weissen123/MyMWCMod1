@@ -61,6 +61,8 @@ namespace MyMWCMod1
             public Vector3 LocalPosition;
             public Vector3 LocalEulerAngles;
 
+            private GameObject ActiveGO; // set by Resolve(); guaranteed non-null when config is non-null
+
             private static List<PivotResetConfig> _configs;
             private static FsmString              _vehicleString;
             private static string                 _xmlPath;
@@ -78,10 +80,8 @@ namespace MyMWCMod1
             {
                 PivotResetConfig config = Resolve();
                 if (config == null) return;
-                GameObject go = GameObject.Find(config.GameObjectPath);
-                if (go == null) { ModConsole.Log("MyMWCMod1: PLAYER pivot not found for " + config.VehicleName + "."); return; }
-                go.transform.localPosition    = config.LocalPosition;
-                go.transform.localEulerAngles = config.LocalEulerAngles;
+                config.ActiveGO.transform.localPosition    = config.LocalPosition;
+                config.ActiveGO.transform.localEulerAngles = config.LocalEulerAngles;
                 ModConsole.Log("MyMWCMod1: PLAYER pivot reset for " + config.VehicleName + ".");
             }
 
@@ -89,10 +89,8 @@ namespace MyMWCMod1
             {
                 PivotResetConfig config = Resolve();
                 if (config == null) return;
-                GameObject go = GameObject.Find(config.GameObjectPath);
-                if (go == null) { ModConsole.Error("MyMWCMod1: PLAYER pivot GO not found for " + config.VehicleName + "."); return; }
-                config.LocalPosition    = go.transform.localPosition;
-                config.LocalEulerAngles = go.transform.localEulerAngles;
+                config.LocalPosition    = config.ActiveGO.transform.localPosition;
+                config.LocalEulerAngles = config.ActiveGO.transform.localEulerAngles;
                 config.WriteToXml();
             }
 
@@ -103,8 +101,11 @@ namespace MyMWCMod1
                 if (_vehicleString == null) return null;
                 string name = _vehicleString.Value;
                 foreach (PivotResetConfig c in _configs)
-                    if (c.VehicleName == name && GameObject.Find(c.GameObjectPath) != null)
-                        return c;
+                {
+                    if (c.VehicleName != name) continue;
+                    GameObject go = GameObject.Find(c.GameObjectPath);
+                    if (go != null) { c.ActiveGO = go; return c; }
+                }
                 return null;
             }
 
