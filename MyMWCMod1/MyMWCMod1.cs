@@ -52,6 +52,57 @@ namespace MyMWCMod1
 
                 Previous = Value.Value;
             }
+
+            public static ComponentMonitor LoadFromXml(XmlElement el, string label, string goPath)
+            {
+                string fsmName   = el.GetAttribute("fsmName");
+                string fsmFloat  = el.GetAttribute("fsmFloat");
+                string dirStr    = el.GetAttribute("direction");
+                string factorStr = el.GetAttribute("factor");
+
+                WearDirection direction = dirStr == "Increases"
+                    ? WearDirection.Increases
+                    : WearDirection.Decreases;
+
+                float factor;
+                if (!float.TryParse(factorStr, System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out factor))
+                    factor = 0.01f;
+
+                FsmFloat value = FindFsmFloat(goPath, fsmName, fsmFloat, label);
+                if (value == null) return null;
+
+                return new ComponentMonitor
+                {
+                    Label     = label,
+                    Value     = value,
+                    Previous  = value.Value,
+                    Direction = direction,
+                    Factor    = factor
+                };
+            }
+
+            private static FsmFloat FindFsmFloat(string objectName, string fsmName, string floatName, string logLabel)
+            {
+                GameObject obj = GameObject.Find(objectName);
+                if (obj == null)
+                {
+                    ModConsole.Error($"FAILED TO FIND object for {logLabel}!!!");
+                    return null;
+                }
+                foreach (PlayMakerFSM fsm in obj.GetComponentsInChildren<PlayMakerFSM>())
+                {
+                    if (fsm.FsmName != fsmName) continue;
+                    FsmFloat result = fsm.FsmVariables.FindFsmFloat(floatName);
+                    if (result != null)
+                    {
+                        ModConsole.Log($"{logLabel} '{floatName}' = {result.Value}");
+                        return result;
+                    }
+                }
+                ModConsole.Error($"FAILED TO FIND FsmFloat '{floatName}' in any FSM '{fsmName}' on {logLabel}!!!");
+                return null;
+            }
         }
 
         private class PivotResetConfig
@@ -429,35 +480,6 @@ namespace MyMWCMod1
                 m.Apply();
         }
 
-        private ComponentMonitor SetupComponentMonitor(XmlElement el, string label, string goPath)
-        {
-            string fsmName   = el.GetAttribute("fsmName");
-            string fsmFloat  = el.GetAttribute("fsmFloat");
-            string dirStr    = el.GetAttribute("direction");
-            string factorStr = el.GetAttribute("factor");
-
-            WearDirection direction = dirStr == "Increases"
-                ? WearDirection.Increases
-                : WearDirection.Decreases;
-
-            float factor;
-            if (!float.TryParse(factorStr, System.Globalization.NumberStyles.Float,
-                    System.Globalization.CultureInfo.InvariantCulture, out factor))
-                factor = 0.01f;
-
-            FsmFloat fsmFloatVar = FindFsmFloat(goPath, fsmName, fsmFloat, label);
-            if (fsmFloatVar == null) return null;
-
-            return new ComponentMonitor
-            {
-                Label     = label,
-                Value     = fsmFloatVar,
-                Previous  = fsmFloatVar.Value,
-                Direction = direction,
-                Factor    = factor
-            };
-        }
-
         private void SetupMonitors()
         {
             string xmlPath = XmlPath;
@@ -495,7 +517,7 @@ namespace MyMWCMod1
 
                 if (isContainer) continue;
 
-                ComponentMonitor monitor = SetupComponentMonitor(el, label, goPath);
+                ComponentMonitor monitor = ComponentMonitor.LoadFromXml(el, label, goPath);
                 if (monitor != null) result.Add(monitor);
             }
 
@@ -637,30 +659,6 @@ namespace MyMWCMod1
                 path = t.name + "/" + path;
             }
             return path;
-        }
-
-        private FsmFloat FindFsmFloat(string objectName, string fsmName, string floatName, string logLabel)
-        {
-            GameObject obj = GameObject.Find(objectName);
-            if (obj == null)
-            {
-                ModConsole.Error($"FAILED TO FIND object for {logLabel}!!!");
-                return null;
-            }
-
-            foreach (PlayMakerFSM fsm in obj.GetComponentsInChildren<PlayMakerFSM>())
-            {
-                if (fsm.FsmName != fsmName) continue;
-                FsmFloat result = fsm.FsmVariables.FindFsmFloat(floatName);
-                if (result != null)
-                {
-                    ModConsole.Log($"{logLabel} '{floatName}' = {result.Value}");
-                    return result;
-                }
-            }
-
-            ModConsole.Error($"FAILED TO FIND FsmFloat '{floatName}' in any FSM '{fsmName}' on {logLabel}!!!");
-            return null;
         }
     }
 }
