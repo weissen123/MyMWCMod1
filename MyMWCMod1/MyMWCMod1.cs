@@ -410,6 +410,74 @@ namespace MyMWCMod1
             }
         }
 
+        private class GameObjectCsvDumper
+        {
+            public static void Dump(string rootName)
+            {
+                GameObject root = GameObject.Find(rootName);
+                if (root == null)
+                {
+                    ModConsole.Error($"[MWC Dumper] Could not find {rootName}");
+                    return;
+                }
+
+                StringBuilder csv = new StringBuilder();
+                csv.AppendLine("GameObject Path;FSM Name;Type;Variable Name;Value");
+                RecursiveCSV(root.transform, csv);
+
+                string fileName = "MWC_FSM_Dump_" + rootName + ".csv";
+                File.WriteAllText(fileName, csv.ToString());
+                ModConsole.Log("Dump complete: " + fileName + " saved to game folder.");
+            }
+
+            private static void RecursiveCSV(Transform current, StringBuilder csv)
+            {
+                string path = GetGameObjectPath(current.gameObject);
+                PlayMakerFSM[] fsms = current.GetComponents<PlayMakerFSM>();
+
+                if (fsms.Length > 0)
+                    foreach (PlayMakerFSM fsm in fsms)
+                        AppendFsmRows(csv, path, fsm);
+                else
+                    csv.AppendLine("\"" + path + "\";None;None;None;0");
+
+                foreach (Transform child in current)
+                    RecursiveCSV(child, csv);
+            }
+
+            private static void AppendFsmRows(StringBuilder csv, string path, PlayMakerFSM fsm)
+            {
+                string safePath = "\"" + path + "\"";
+                string safeFsm  = "\"" + fsm.FsmName + "\"";
+                FsmVariables vars = fsm.FsmVariables;
+
+                if (vars.FloatVariables.Length == 0 && vars.IntVariables.Length == 0 && vars.BoolVariables.Length == 0)
+                {
+                    csv.AppendLine(safePath + ";" + safeFsm + ";N/A;N/A;0");
+                    return;
+                }
+
+                foreach (FsmFloat fv in vars.FloatVariables)
+                    csv.AppendLine(safePath + ";" + safeFsm + ";Float;\"" + fv.Name + "\";" + fv.Value);
+                foreach (FsmInt iv in vars.IntVariables)
+                    csv.AppendLine(safePath + ";" + safeFsm + ";Int;\"" + iv.Name + "\";" + iv.Value);
+                foreach (FsmBool bv in vars.BoolVariables)
+                    csv.AppendLine(safePath + ";" + safeFsm + ";Bool;\"" + bv.Name + "\";" + bv.Value);
+            }
+
+            private static string GetGameObjectPath(GameObject obj)
+            {
+                string path = obj.name;
+                Transform t = obj.transform;
+                while (t.parent != null)
+                {
+                    t = t.parent;
+                    path = t.name + "/" + path;
+                }
+                return path;
+            }
+        }
+
         // Maps XML setting id → Drivetrain bool property setter
         private static readonly Dictionary<string, Action<Drivetrain, bool>> _drivetrainBoolSetters
             = new Dictionary<string, Action<Drivetrain, bool>>
@@ -446,8 +514,8 @@ namespace MyMWCMod1
             DrivetrainMonitor.RegisterSettings(XmlPath);
             _pivotResetKey = Keybind.Add("pivotReset", "Reset Player Pivot", KeyCode.Backslash);
             _pivotSaveKey  = Keybind.Add("savePivot",  "Save Player Pivot",  KeyCode.Backslash, KeyCode.LeftControl);
-            Settings.AddButton("Dump CORRIS FSM to CSV",    () => DumpToCSV("CORRIS"));
-            Settings.AddButton("Dump BACHGLOTZ FSM to CSV", () => DumpToCSV("BACHGLOTZ(1905kg)"));
+            Settings.AddButton("Dump CORRIS FSM to CSV",    () => GameObjectCsvDumper.Dump("CORRIS"));
+            Settings.AddButton("Dump BACHGLOTZ FSM to CSV", () => GameObjectCsvDumper.Dump("BACHGLOTZ(1905kg)"));
         }
 
         private void EnsureXmlExists()
@@ -589,69 +657,5 @@ namespace MyMWCMod1
             File.WriteAllText(path, xml, new System.Text.UTF8Encoding(false));
         }
 
-        private void DumpToCSV(string rootName)
-        {
-            GameObject root = GameObject.Find(rootName);
-            if (root == null)
-            {
-                ModConsole.Error($"[MWC Dumper] Could not find {rootName}");
-                return;
-            }
-
-            StringBuilder csv = new StringBuilder();
-            csv.AppendLine("GameObject Path;FSM Name;Type;Variable Name;Value");
-            RecursiveCSV(root.transform, csv);
-
-            string fileName = "MWC_FSM_Dump_" + rootName + ".csv";
-            File.WriteAllText(fileName, csv.ToString());
-            ModConsole.Log("Dump complete: " + fileName + " saved to game folder.");
-        }
-
-        private void RecursiveCSV(Transform current, StringBuilder csv)
-        {
-            string path = GetGameObjectPath(current.gameObject);
-            PlayMakerFSM[] fsms = current.GetComponents<PlayMakerFSM>();
-
-            if (fsms.Length > 0)
-                foreach (PlayMakerFSM fsm in fsms)
-                    AppendFsmRows(csv, path, fsm);
-            else
-                csv.AppendLine("\"" + path + "\";None;None;None;0");
-
-            foreach (Transform child in current)
-                RecursiveCSV(child, csv);
-        }
-
-        private void AppendFsmRows(StringBuilder csv, string path, PlayMakerFSM fsm)
-        {
-            string safePath = "\"" + path + "\"";
-            string safeFsm  = "\"" + fsm.FsmName + "\"";
-            FsmVariables vars = fsm.FsmVariables;
-
-            if (vars.FloatVariables.Length == 0 && vars.IntVariables.Length == 0 && vars.BoolVariables.Length == 0)
-            {
-                csv.AppendLine(safePath + ";" + safeFsm + ";N/A;N/A;0");
-                return;
-            }
-
-            foreach (FsmFloat fv in vars.FloatVariables)
-                csv.AppendLine(safePath + ";" + safeFsm + ";Float;\"" + fv.Name + "\";" + fv.Value);
-            foreach (FsmInt iv in vars.IntVariables)
-                csv.AppendLine(safePath + ";" + safeFsm + ";Int;\"" + iv.Name + "\";" + iv.Value);
-            foreach (FsmBool bv in vars.BoolVariables)
-                csv.AppendLine(safePath + ";" + safeFsm + ";Bool;\"" + bv.Name + "\";" + bv.Value);
-        }
-
-        private string GetGameObjectPath(GameObject obj)
-        {
-            string path = obj.name;
-            Transform t = obj.transform;
-            while (t.parent != null)
-            {
-                t = t.parent;
-                path = t.name + "/" + path;
-            }
-            return path;
-        }
     }
 }
