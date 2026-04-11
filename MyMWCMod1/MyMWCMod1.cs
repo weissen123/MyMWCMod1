@@ -599,44 +599,37 @@ namespace MyMWCMod1
 
         private void RecursiveCSV(Transform current, StringBuilder csv)
         {
-            string fullPath = GetGameObjectPath(current.gameObject);
+            string path = GetGameObjectPath(current.gameObject);
             PlayMakerFSM[] fsms = current.GetComponents<PlayMakerFSM>();
 
             if (fsms.Length > 0)
-            {
                 foreach (PlayMakerFSM fsm in fsms)
-                {
-                    string safePath = "\"" + fullPath + "\"";
-                    string safeFsm  = "\"" + fsm.FsmName + "\"";
-                    bool anyVar = false;
-
-                    foreach (FsmFloat fv in fsm.FsmVariables.FloatVariables)
-                    {
-                        csv.AppendLine(safePath + ";" + safeFsm + ";Float;\"" + fv.Name + "\";" + fv.Value);
-                        anyVar = true;
-                    }
-                    foreach (FsmInt iv in fsm.FsmVariables.IntVariables)
-                    {
-                        csv.AppendLine(safePath + ";" + safeFsm + ";Int;\"" + iv.Name + "\";" + iv.Value);
-                        anyVar = true;
-                    }
-                    foreach (FsmBool bv in fsm.FsmVariables.BoolVariables)
-                    {
-                        csv.AppendLine(safePath + ";" + safeFsm + ";Bool;\"" + bv.Name + "\";" + bv.Value);
-                        anyVar = true;
-                    }
-
-                    if (!anyVar)
-                        csv.AppendLine(safePath + ";" + safeFsm + ";N/A;N/A;0");
-                }
-            }
+                    AppendFsmRows(csv, path, fsm);
             else
-            {
-                csv.AppendLine("\"" + fullPath + "\";None;None;None;0");
-            }
+                csv.AppendLine("\"" + path + "\";None;None;None;0");
 
             foreach (Transform child in current)
                 RecursiveCSV(child, csv);
+        }
+
+        private void AppendFsmRows(StringBuilder csv, string path, PlayMakerFSM fsm)
+        {
+            string safePath = "\"" + path + "\"";
+            string safeFsm  = "\"" + fsm.FsmName + "\"";
+            FsmVariables vars = fsm.FsmVariables;
+
+            if (vars.FloatVariables.Length == 0 && vars.IntVariables.Length == 0 && vars.BoolVariables.Length == 0)
+            {
+                csv.AppendLine(safePath + ";" + safeFsm + ";N/A;N/A;0");
+                return;
+            }
+
+            foreach (FsmFloat fv in vars.FloatVariables)
+                csv.AppendLine(safePath + ";" + safeFsm + ";Float;\"" + fv.Name + "\";" + fv.Value);
+            foreach (FsmInt iv in vars.IntVariables)
+                csv.AppendLine(safePath + ";" + safeFsm + ";Int;\"" + iv.Name + "\";" + iv.Value);
+            foreach (FsmBool bv in vars.BoolVariables)
+                csv.AppendLine(safePath + ";" + safeFsm + ";Bool;\"" + bv.Name + "\";" + bv.Value);
         }
 
         private string GetGameObjectPath(GameObject obj)
