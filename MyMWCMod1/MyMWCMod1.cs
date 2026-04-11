@@ -226,13 +226,6 @@ namespace MyMWCMod1
 
         private class DrivetrainMonitor
         {
-            private class DrivetrainBoolSetting
-            {
-                public SettingsCheckBox         Checkbox;
-                public Action<Drivetrain, bool> Setter;
-                public readonly List<ConditionRef> Conditions = new List<ConditionRef>(); // empty = always apply
-            }
-
             private class ConditionRef
             {
                 private readonly string _path;
@@ -291,6 +284,13 @@ namespace MyMWCMod1
 
                     return false;
                 }
+            }
+
+            private class DrivetrainBoolSetting
+            {
+                public SettingsCheckBox         Checkbox;
+                public Action<Drivetrain, bool> Setter;
+                public readonly List<ConditionRef> Conditions = new List<ConditionRef>(); // empty = always apply
             }
 
             public string     Label;
