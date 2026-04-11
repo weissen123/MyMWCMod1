@@ -224,75 +224,75 @@ namespace MyMWCMod1
             }
         }
 
-        private class DrivetrainBoolSetting
-        {
-            public SettingsCheckBox         Checkbox;
-            public Action<Drivetrain, bool> Setter;
-            public readonly List<ConditionRef> Conditions = new List<ConditionRef>(); // empty = always apply
-        }
-
-        private class ConditionRef
-        {
-            private readonly string _path;
-            private readonly string _fsmName;
-            private readonly string _varName;
-            private readonly string _logLabel;
-
-            private const float RetryInterval = 1f; // seconds between resolution attempts
-
-            private GameObject   _cachedGO;       // set once GameObject.Find succeeds
-            private PlayMakerFSM _cachedFsm;      // set once FSM-by-name scan succeeds
-            private FsmBool      _resolved;       // set once FsmVariables lookup succeeds
-            private float        _nextRetryTime;  // default 0f → first call always attempts
-
-            public ConditionRef(string path, string fsmName, string varName, string logLabel)
-            {
-                _path = path; _fsmName = fsmName; _varName = varName; _logLabel = logLabel;
-            }
-
-            public bool IsResolved => _resolved != null;
-
-            public bool Evaluate()
-            {
-                // Hot path: bool already cached
-                if (_resolved != null) return _resolved.Value;
-
-                // Rate-limit retries to once per second
-                if (UnityEngine.Time.fixedTime < _nextRetryTime) return false;
-                _nextRetryTime = UnityEngine.Time.fixedTime + RetryInterval;
-
-                // Stage 1: find the GameObject
-                if (_cachedGO == null)
-                {
-                    _cachedGO = GameObject.Find(_path);
-                    if (_cachedGO == null) return false;
-                }
-
-                // Stage 2: find the PlayMakerFSM by name (GetComponentsInChildren runs once, then cached)
-                if (_cachedFsm == null)
-                {
-                    foreach (PlayMakerFSM fsm in _cachedGO.GetComponentsInChildren<PlayMakerFSM>())
-                    {
-                        if (fsm.FsmName == _fsmName) { _cachedFsm = fsm; break; }
-                    }
-                    if (_cachedFsm == null) return false;
-                }
-
-                // Stage 3: find the bool variable
-                FsmBool result = _cachedFsm.FsmVariables.FindFsmBool(_varName);
-                if (result != null)
-                {
-                    _resolved = result;
-                    ModConsole.Log($"{_logLabel} '{_varName}' resolved = {result.Value}");
-                    return result.Value;
-                }
-
-                return false;
-            }
-        }
-
         private class DrivetrainMonitor
         {
+            private class DrivetrainBoolSetting
+            {
+                public SettingsCheckBox         Checkbox;
+                public Action<Drivetrain, bool> Setter;
+                public readonly List<ConditionRef> Conditions = new List<ConditionRef>(); // empty = always apply
+            }
+
+            private class ConditionRef
+            {
+                private readonly string _path;
+                private readonly string _fsmName;
+                private readonly string _varName;
+                private readonly string _logLabel;
+
+                private const float RetryInterval = 1f; // seconds between resolution attempts
+
+                private GameObject   _cachedGO;       // set once GameObject.Find succeeds
+                private PlayMakerFSM _cachedFsm;      // set once FSM-by-name scan succeeds
+                private FsmBool      _resolved;       // set once FsmVariables lookup succeeds
+                private float        _nextRetryTime;  // default 0f → first call always attempts
+
+                public ConditionRef(string path, string fsmName, string varName, string logLabel)
+                {
+                    _path = path; _fsmName = fsmName; _varName = varName; _logLabel = logLabel;
+                }
+
+                public bool IsResolved => _resolved != null;
+
+                public bool Evaluate()
+                {
+                    // Hot path: bool already cached
+                    if (_resolved != null) return _resolved.Value;
+
+                    // Rate-limit retries to once per second
+                    if (UnityEngine.Time.fixedTime < _nextRetryTime) return false;
+                    _nextRetryTime = UnityEngine.Time.fixedTime + RetryInterval;
+
+                    // Stage 1: find the GameObject
+                    if (_cachedGO == null)
+                    {
+                        _cachedGO = GameObject.Find(_path);
+                        if (_cachedGO == null) return false;
+                    }
+
+                    // Stage 2: find the PlayMakerFSM by name (GetComponentsInChildren runs once, then cached)
+                    if (_cachedFsm == null)
+                    {
+                        foreach (PlayMakerFSM fsm in _cachedGO.GetComponentsInChildren<PlayMakerFSM>())
+                        {
+                            if (fsm.FsmName == _fsmName) { _cachedFsm = fsm; break; }
+                        }
+                        if (_cachedFsm == null) return false;
+                    }
+
+                    // Stage 3: find the bool variable
+                    FsmBool result = _cachedFsm.FsmVariables.FindFsmBool(_varName);
+                    if (result != null)
+                    {
+                        _resolved = result;
+                        ModConsole.Log($"{_logLabel} '{_varName}' resolved = {result.Value}");
+                        return result.Value;
+                    }
+
+                    return false;
+                }
+            }
+
             public string     Label;
             public Drivetrain Drivetrain;
             public readonly List<DrivetrainBoolSetting> BoolSettings = new List<DrivetrainBoolSetting>();
