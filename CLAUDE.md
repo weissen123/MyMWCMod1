@@ -48,8 +48,8 @@ MyMWCMod1/
 
 - **Entry point:** `MyMWCMod1.cs` — inherits from `MSCLoader.Mod`
 - **Lifecycle hooks registered in `ModSetup()`:**
-  - `OnLoad` → `Mod_OnLoad`: calls `SetupMonitors()` (component + drivetrain + pivot reset monitors) — resolves game objects, FSM references, and the `PlayerCurrentVehicle` global FsmString
-  - `Update` → `Mod_Update`: checks the configured keybind; reads `PlayerCurrentVehicle`; applies the matching pivot reset from XML config
+  - `OnLoad` → `Mod_OnLoad`: calls `SetupMonitors()` (component + drivetrain + pivot reset monitors) then `PivotResetConfig.Init()` — resolves game objects, FSM references, and injects dependencies into `PivotResetConfig`
+  - `Update` → `Mod_Update`: dispatches keybind presses to `PivotResetConfig.ResetCurrentPivot()` or `PivotResetConfig.SaveCurrentPivot()`
   - `FixedUpdate` → `Mod_FixedUpdate`: applies wear reduction (`ComponentMonitor.ApplyReduction`) and drivetrain settings (`DrivetrainMonitor.Apply`) every physics tick
   - `ModSettings` → `Mod_Settings`: registers in-game settings UI from XML, registers the `Reset Player Pivot` and `Save Player Pivot` keybinds, and adds CSV dump buttons
 
@@ -61,7 +61,7 @@ MyMWCMod1/
 | `DrivetrainBoolSetting` | Pairs a `SettingsCheckBox` with a `Drivetrain` property setter and a list of `ConditionRef` guards |
 | `DrivetrainMonitor` | Holds a `Drivetrain` reference and a list of `DrivetrainBoolSetting`; calls `Apply()` each tick |
 | `ConditionRef` | Lazily resolves a `FsmBool` via staged GO → FSM → variable lookup; caches on first success; evaluates as `false` until resolved |
-| `PivotResetConfig` | Holds one XML-loaded pivot reset entry: vehicle name, PLAYER GO path, local position, local euler angles; list populated at `OnLoad` |
+| `PivotResetConfig` | Self-contained pivot reset unit. Static `Init()` injects the config list, xml path, and vehicle FsmString. Static `ResetCurrentPivot()` / `SaveCurrentPivot()` are called directly from `Mod_Update`. `Resolve()` finds the matching config and caches the active `GameObject` on the instance. `WriteToXml()` persists the pose back to the XML file. |
 
 ### XML Configuration (`Mods/MyMWCMod1_monitors.xml`)
 
