@@ -67,26 +67,6 @@ namespace MyMWCMod1
             private static FsmString              _vehicleString;
             private static string                 _xmlPath;
 
-            public static PivotResetConfig LoadFrom(XmlElement pivotEl)
-            {
-                var ns = System.Globalization.NumberStyles.Float;
-                var ic = System.Globalization.CultureInfo.InvariantCulture;
-                float px, py, pz, rx, ry, rz;
-                float.TryParse(pivotEl.GetAttribute("posX"), ns, ic, out px);
-                float.TryParse(pivotEl.GetAttribute("posY"), ns, ic, out py);
-                float.TryParse(pivotEl.GetAttribute("posZ"), ns, ic, out pz);
-                float.TryParse(pivotEl.GetAttribute("rotX"), ns, ic, out rx);
-                float.TryParse(pivotEl.GetAttribute("rotY"), ns, ic, out ry);
-                float.TryParse(pivotEl.GetAttribute("rotZ"), ns, ic, out rz);
-                return new PivotResetConfig
-                {
-                    VehicleName      = pivotEl.GetAttribute("vehicleName"),
-                    GameObjectPath   = pivotEl.GetAttribute("playerPath"),
-                    LocalPosition    = new Vector3(px, py, pz),
-                    LocalEulerAngles = new Vector3(rx, ry, rz),
-                };
-            }
-
             public static void Init(List<PivotResetConfig> configs, string xmlPath)
             {
                 _configs       = configs;
@@ -127,6 +107,26 @@ namespace MyMWCMod1
                     if (go != null) { c.ActiveGO = go; return c; }
                 }
                 return null;
+            }
+
+            public static PivotResetConfig LoadFromXml(XmlElement pivotEl)
+            {
+                var ns = System.Globalization.NumberStyles.Float;
+                var ic = System.Globalization.CultureInfo.InvariantCulture;
+                float px, py, pz, rx, ry, rz;
+                float.TryParse(pivotEl.GetAttribute("posX"), ns, ic, out px);
+                float.TryParse(pivotEl.GetAttribute("posY"), ns, ic, out py);
+                float.TryParse(pivotEl.GetAttribute("posZ"), ns, ic, out pz);
+                float.TryParse(pivotEl.GetAttribute("rotX"), ns, ic, out rx);
+                float.TryParse(pivotEl.GetAttribute("rotY"), ns, ic, out ry);
+                float.TryParse(pivotEl.GetAttribute("rotZ"), ns, ic, out rz);
+                return new PivotResetConfig
+                {
+                    VehicleName      = pivotEl.GetAttribute("vehicleName"),
+                    GameObjectPath   = pivotEl.GetAttribute("playerPath"),
+                    LocalPosition    = new Vector3(px, py, pz),
+                    LocalEulerAngles = new Vector3(rx, ry, rz),
+                };
             }
 
             private void WriteToXml()
@@ -493,7 +493,7 @@ namespace MyMWCMod1
                 bool isContainer = false;
 
                 XmlElement pivotEl = (XmlElement)el.SelectSingleNode("PivotReset");
-                if (pivotEl      != null) { _pivotResetConfigs.Add(PivotResetConfig.LoadFrom(pivotEl)); isContainer = true; }
+                if (pivotEl      != null) { _pivotResetConfigs.Add(PivotResetConfig.LoadFromXml(pivotEl)); isContainer = true; }
 
                 XmlElement drivetrainEl = (XmlElement)el.SelectSingleNode("Drivetrain");
                 if (drivetrainEl != null) { SetupDrivetrain(goPath, label, drivetrainEl); isContainer = true; }
