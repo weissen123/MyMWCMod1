@@ -483,16 +483,9 @@ namespace MyMWCMod1
         private void SetupMonitors()
         {
             string xmlPath = XmlPath;
-            EnsureXmlExists(); // no-op if already created in Mod_Settings
-            _monitors = LoadMonitorsFromXml(xmlPath);
-            ModConsole.Log("MyMWCMod1: Loaded " + _monitors.Count + " monitors from " + xmlPath);
-        }
-
-        private List<ComponentMonitor> LoadMonitorsFromXml(string path)
-        {
-            var result = new List<ComponentMonitor>();
+            EnsureXmlExists();
             XmlDocument doc = new XmlDocument();
-            doc.Load(path);
+            doc.Load(xmlPath);
 
             foreach (XmlNode node in doc.DocumentElement.ChildNodes)
             {
@@ -505,7 +498,7 @@ namespace MyMWCMod1
                 bool isContainer = false;
 
                 XmlElement pivotEl = (XmlElement)el.SelectSingleNode("PivotReset");
-                if (pivotEl      != null) { _pivotResetConfigs.Add(PivotResetConfig.LoadFromXml(pivotEl)); isContainer = true; }
+                if (pivotEl != null) { _pivotResetConfigs.Add(PivotResetConfig.LoadFromXml(pivotEl)); isContainer = true; }
 
                 XmlElement drivetrainEl = (XmlElement)el.SelectSingleNode("Drivetrain");
                 if (drivetrainEl != null)
@@ -518,10 +511,10 @@ namespace MyMWCMod1
                 if (isContainer) continue;
 
                 ComponentMonitor monitor = ComponentMonitor.LoadFromXml(el, label, goPath);
-                if (monitor != null) result.Add(monitor);
+                if (monitor != null) _monitors.Add(monitor);
             }
 
-            return result;
+            ModConsole.Log("MyMWCMod1: Loaded " + _monitors.Count + " monitors from " + xmlPath);
         }
 
         private void WriteDefaultXml(string path)
