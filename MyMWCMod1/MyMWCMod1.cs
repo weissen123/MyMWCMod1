@@ -353,6 +353,13 @@ namespace MyMWCMod1
                 public SettingsCheckBox         Checkbox;
                 public Action<Drivetrain, bool> Setter;
                 public readonly List<ICondition> Conditions = new List<ICondition>(); // empty = always apply
+
+                public void Apply(Drivetrain drivetrain)
+                {
+                    foreach (ICondition c in Conditions)
+                        if (!c.Evaluate()) return;
+                    Setter(drivetrain, Checkbox.GetValue());
+                }
             }
 
             public string     Label;
@@ -448,13 +455,7 @@ namespace MyMWCMod1
             public void Apply()
             {
                 foreach (DrivetrainBoolSetting s in BoolSettings)
-                {
-                    bool conditionMet = true;
-                    foreach (ICondition c in s.Conditions)
-                        if (!c.Evaluate()) { conditionMet = false; break; }
-                    if (conditionMet)
-                        s.Setter(Drivetrain, s.Checkbox.GetValue());
-                }
+                    s.Apply(Drivetrain);
             }
 
             private void ApplySliderSetting(XmlElement s, string id)
