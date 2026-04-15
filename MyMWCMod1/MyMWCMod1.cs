@@ -447,7 +447,7 @@ namespace MyMWCMod1
                 foreach (DrivetrainBoolSetting s in BoolSettings)
                 {
                     bool conditionMet = true;
-                    foreach (ConditionRef c in s.Conditions)
+                    foreach (ICondition c in s.Conditions)
                         if (!c.Evaluate()) { conditionMet = false; break; }
                     if (conditionMet)
                         s.Setter(Drivetrain, s.Checkbox.GetValue());
