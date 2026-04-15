@@ -228,9 +228,8 @@ namespace MyMWCMod1
         {
             private interface ICondition
             {
-                bool   IsResolved { get; }
-                string LogPrefix  { get; } // e.g. "canStall.Condition fsmBool"
-                bool   Evaluate();
+                bool IsResolved { get; }
+                bool Evaluate();
             }
 
             private class FsmBoolCondition : ICondition
@@ -252,8 +251,7 @@ namespace MyMWCMod1
                     _path = path; _fsmName = fsmName; _varName = varName; _logLabel = logLabel;
                 }
 
-                public bool   IsResolved => _resolved != null;
-                public string LogPrefix  => _logLabel + " fsmBool";
+                public bool IsResolved => _resolved != null;
 
                 public bool Evaluate()
                 {
@@ -313,8 +311,7 @@ namespace MyMWCMod1
                     _path = path; _compName = compName; _fieldName = fieldName; _minFloat = minFloat; _logLabel = logLabel;
                 }
 
-                public bool   IsResolved => _cachedField != null;
-                public string LogPrefix  => _logLabel + " varFloat";
+                public bool IsResolved => _cachedField != null;
 
                 public bool Evaluate()
                 {
@@ -489,7 +486,7 @@ namespace MyMWCMod1
                     if (cond == null) continue;
                     cond.Evaluate();
                     if (!cond.IsResolved)
-                        ModConsole.Log(cond.LogPrefix + " not resolved at load — will retry at runtime.");
+                        ModConsole.Log("MyMWCMod1: Condition for '" + id + "' not resolved at load — will retry at runtime.");
                     boolSetting.Conditions.Add(cond);
                 }
                 return boolSetting;
