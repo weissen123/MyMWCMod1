@@ -228,8 +228,9 @@ namespace MyMWCMod1
         {
             private interface ICondition
             {
-                bool IsResolved { get; }
-                bool Evaluate();
+                bool   IsResolved { get; }
+                string LogPrefix  { get; } // e.g. "canStall.Condition 'ElectricsOK'"
+                bool   Evaluate();
             }
 
             private class FsmBoolCondition : ICondition
@@ -251,7 +252,8 @@ namespace MyMWCMod1
                     _path = path; _fsmName = fsmName; _varName = varName; _logLabel = logLabel;
                 }
 
-                public bool IsResolved => _resolved != null;
+                public bool   IsResolved => _resolved != null;
+                public string LogPrefix  => _logLabel + " '" + _varName + "'";
 
                 public bool Evaluate()
                 {
@@ -311,7 +313,8 @@ namespace MyMWCMod1
                     _path = path; _compName = compName; _fieldName = fieldName; _minFloat = minFloat; _logLabel = logLabel;
                 }
 
-                public bool IsResolved => _cachedField != null;
+                public bool   IsResolved => _cachedField != null;
+                public string LogPrefix  => _logLabel + " field '" + _fieldName + "'";
 
                 public bool Evaluate()
                 {
@@ -486,7 +489,7 @@ namespace MyMWCMod1
                     if (cond == null) continue;
                     cond.Evaluate();
                     if (!cond.IsResolved)
-                        ModConsole.Log("MyMWCMod1: Condition for '" + id + "' not resolved at load — will retry at runtime.");
+                        ModConsole.Log(cond.LogPrefix + " not resolved at load — will retry at runtime.");
                     boolSetting.Conditions.Add(cond);
                 }
                 return boolSetting;
