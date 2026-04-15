@@ -226,7 +226,13 @@ namespace MyMWCMod1
 
         private class DrivetrainMonitor
         {
-            private class ConditionRef
+            private interface ICondition
+            {
+                bool IsResolved { get; }
+                bool Evaluate();
+            }
+
+            private class FsmBoolCondition : ICondition
             {
                 private readonly string _path;
                 private readonly string _fsmName;
@@ -240,7 +246,7 @@ namespace MyMWCMod1
                 private FsmBool      _resolved;       // set once FsmVariables lookup succeeds
                 private float        _nextRetryTime;  // default 0f → first call always attempts
 
-                public ConditionRef(string path, string fsmName, string varName, string logLabel)
+                public FsmBoolCondition(string path, string fsmName, string varName, string logLabel)
                 {
                     _path = path; _fsmName = fsmName; _varName = varName; _logLabel = logLabel;
                 }
@@ -286,11 +292,64 @@ namespace MyMWCMod1
                 }
             }
 
+            private class ComponentFloatCondition : ICondition
+            {
+                private readonly string _path;
+                private readonly string _compName;
+                private readonly string _fieldName;
+                private readonly float  _minFloat;
+                private readonly string _logLabel;
+
+                private const float RetryInterval = 1f;
+
+                private Component                   _cachedComp;
+                private System.Reflection.FieldInfo _cachedField;
+                private float                       _nextRetryTime;
+
+                public ComponentFloatCondition(string path, string compName, string fieldName, float minFloat, string logLabel)
+                {
+                    _path = path; _compName = compName; _fieldName = fieldName; _minFloat = minFloat; _logLabel = logLabel;
+                }
+
+                public bool IsResolved => _cachedField != null;
+
+                public bool Evaluate()
+                {
+                    // Hot path: field already cached
+                    if (_cachedField != null) return (float)_cachedField.GetValue(_cachedComp) >= _minFloat;
+
+                    // Rate-limit retries to once per second
+                    if (UnityEngine.Time.fixedTime < _nextRetryTime) return false;
+                    _nextRetryTime = UnityEngine.Time.fixedTime + RetryInterval;
+
+                    // Stage 1: find the GameObject and component
+                    if (_cachedComp == null)
+                    {
+                        GameObject go = GameObject.Find(_path);
+                        if (go == null) return false;
+                        _cachedComp = go.GetComponent(_compName);
+                        if (_cachedComp == null) return false;
+                    }
+
+                    // Stage 2: find the float field via reflection
+                    _cachedField = _cachedComp.GetType().GetField(
+                        _fieldName,
+                        System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                    if (_cachedField != null)
+                    {
+                        ModConsole.Log(_logLabel + " field '" + _fieldName + "' resolved = " + (float)_cachedField.GetValue(_cachedComp));
+                        return (float)_cachedField.GetValue(_cachedComp) >= _minFloat;
+                    }
+
+                    return false;
+                }
+            }
+
             private class DrivetrainBoolSetting
             {
                 public SettingsCheckBox         Checkbox;
                 public Action<Drivetrain, bool> Setter;
-                public readonly List<ConditionRef> Conditions = new List<ConditionRef>(); // empty = always apply
+                public readonly List<ICondition> Conditions = new List<ICondition>(); // empty = always apply
             }
 
             public string     Label;
@@ -423,22 +482,55 @@ namespace MyMWCMod1
                 DrivetrainBoolSetting boolSetting = new DrivetrainBoolSetting { Checkbox = cb, Setter = setter };
                 foreach (XmlNode condNode in condNodes)
                 {
-                    XmlElement condEl   = (XmlElement)condNode;
-                    string     condPath = condEl.GetAttribute("path");
-                    string     condFsm  = condEl.GetAttribute("fsmName");
-                    string     condBool = condEl.GetAttribute("fsmBool");
-                    if (string.IsNullOrEmpty(condPath) || string.IsNullOrEmpty(condFsm) || string.IsNullOrEmpty(condBool))
-                    {
-                        ModConsole.Error($"MyMWCMod1: Condition for '{id}' is missing required attributes — condition skipped.");
-                        continue;
-                    }
-                    ConditionRef cond = new ConditionRef(condPath, condFsm, condBool, id + ".Condition");
+                    ICondition cond = BuildCondition((XmlElement)condNode, id);
+                    if (cond == null) continue;
                     cond.Evaluate();
                     if (!cond.IsResolved)
-                        ModConsole.Log($"MyMWCMod1: Condition '{condBool}' found at load — will retry at runtime.");
+                        ModConsole.Log("MyMWCMod1: Condition for '" + id + "' not resolved at load — will retry at runtime.");
                     boolSetting.Conditions.Add(cond);
                 }
                 return boolSetting;
+            }
+
+            private static ICondition BuildCondition(XmlElement condEl, string id)
+            {
+                string path     = condEl.GetAttribute("path");
+                string varFloat = condEl.GetAttribute("varFloat");
+                string fsmBool  = condEl.GetAttribute("fsmBool");
+
+                if (!string.IsNullOrEmpty(varFloat)) return BuildComponentFloatCondition(condEl, path, id);
+                if (!string.IsNullOrEmpty(fsmBool))  return BuildFsmBoolCondition(condEl, path, id);
+
+                ModConsole.Error("MyMWCMod1: Condition for '" + id + "' has neither fsmBool nor varFloat — condition skipped.");
+                return null;
+            }
+
+            private static ICondition BuildFsmBoolCondition(XmlElement condEl, string path, string id)
+            {
+                string fsmName = condEl.GetAttribute("fsmName");
+                string fsmBool = condEl.GetAttribute("fsmBool");
+                if (string.IsNullOrEmpty(path) || string.IsNullOrEmpty(fsmName) || string.IsNullOrEmpty(fsmBool))
+                {
+                    ModConsole.Error("MyMWCMod1: FsmBool condition for '" + id + "' is missing required attributes — condition skipped.");
+                    return null;
+                }
+                return new FsmBoolCondition(path, fsmName, fsmBool, id + ".Condition");
+            }
+
+            private static ICondition BuildComponentFloatCondition(XmlElement condEl, string path, string id)
+            {
+                string compName = condEl.GetAttribute("CompName");
+                string varFloat = condEl.GetAttribute("varFloat");
+                string minStr   = condEl.GetAttribute("minFloat");
+                float  minFloat;
+                if (string.IsNullOrEmpty(path) || string.IsNullOrEmpty(compName) || string.IsNullOrEmpty(varFloat)
+                    || !float.TryParse(minStr, System.Globalization.NumberStyles.Float,
+                                       System.Globalization.CultureInfo.InvariantCulture, out minFloat))
+                {
+                    ModConsole.Error("MyMWCMod1: ComponentFloat condition for '" + id + "' is missing required attributes — condition skipped.");
+                    return null;
+                }
+                return new ComponentFloatCondition(path, compName, varFloat, minFloat, id + ".Condition");
             }
         }
 
@@ -646,6 +738,7 @@ namespace MyMWCMod1
         <Condition fsmName=""Power""     fsmBool=""ElectricsOK""  path=""CORRIS/Simulation/Electricity"" />
         <Condition fsmName=""FuelLine""  fsmBool=""FuelOK""       path=""CORRIS/Simulation/Engine/Fuel"" />
         <Condition fsmName=""Cylinders"" fsmBool=""CombustionOK"" path=""CORRIS/Simulation/Engine/Combustion"" />
+        <Condition path=""CORRIS"" CompName=""Drivetrain"" varFloat=""rpm"" minFloat=""400"" />
       </Setting>
     </Drivetrain>
     <PivotReset vehicleName=""Corris""

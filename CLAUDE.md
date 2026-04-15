@@ -59,8 +59,10 @@ MyMWCMod1/
 |---|---|
 | `ComponentMonitor` | Tracks a single `FsmFloat` wear variable; rolls back changes each tick by `factor`. Owns its static `_instances` list; `LoadFromXml` constructs from XML; `ApplyAll` iterates each tick. |
 | `DrivetrainMonitor` | Holds a `Drivetrain` reference and a list of `DrivetrainBoolSetting`; owns `_instances`, settings dicts, setter dicts, and nested classes. `RegisterSettings` registers UI; `LoadFromXml` constructs from XML; `ApplyAll` iterates each tick. |
-| `DrivetrainMonitor.ConditionRef` | Lazily resolves a `FsmBool` via staged GO → FSM → variable lookup; caches on first success; evaluates as `false` until resolved. |
-| `DrivetrainMonitor.DrivetrainBoolSetting` | Pairs a `SettingsCheckBox` with a `Drivetrain` property setter and a list of `ConditionRef` guards. |
+| `DrivetrainMonitor.ICondition` | Interface for condition types: `bool Evaluate()` and `bool IsResolved`. |
+| `DrivetrainMonitor.FsmBoolCondition` | Lazily resolves a `FsmBool` via staged GO → FSM → variable lookup; caches on first success; evaluates as `false` until resolved. |
+| `DrivetrainMonitor.ComponentFloatCondition` | Lazily resolves a Unity component field via staged GO → `GetComponent(name)` → reflection `GetField`; evaluates as `field >= minFloat`. |
+| `DrivetrainMonitor.DrivetrainBoolSetting` | Pairs a `SettingsCheckBox` with a `Drivetrain` property setter and a list of `ICondition` guards. |
 | `PivotResetConfig` | Self-contained pivot reset unit. Owns its static `_configs` list internally. Static `Init(xmlPath)` injects the xml path and resolves the vehicle `FsmString`. Static `Add`, `ResetCurrentPivot`, `SaveCurrentPivot` are the public interface. `Resolve()` finds the matching config and caches the active `GameObject` on the instance. `WriteToXml()` persists the pose back to the XML file. |
 | `GameObjectCsvDumper` | Recursively walks a GameObject hierarchy and writes all PlayMaker FSM variables to a CSV. `Dump(rootName)` is the single public entry point. |
 
@@ -82,10 +84,15 @@ All monitors are loaded from XML; `WriteDefaultXml()` regenerates it if missing.
       <Condition path="CORRIS/Simulation/Electricity"       fsmName="Power"     fsmBool="ElectricsOK"  />
       <Condition path="CORRIS/Simulation/Engine/Fuel"       fsmName="FuelLine"  fsmBool="FuelOK"       />
       <Condition path="CORRIS/Simulation/Engine/Combustion" fsmName="Cylinders" fsmBool="CombustionOK" />
+      <Condition path="CORRIS" CompName="Drivetrain" varFloat="rpm" minFloat="400" />
     </Setting>
   </Drivetrain>
 </Monitor>
 ```
+
+Two `<Condition>` forms are supported (discriminated by attribute presence):
+- **FsmBool** — requires `path`, `fsmName`, `fsmBool`: resolves a PlayMaker bool variable; evaluates its value.
+- **ComponentFloat** — requires `path`, `CompName`, `varFloat`, `minFloat`: resolves a Unity component field via reflection; evaluates `field >= minFloat`.
 
 **Pivot reset** (`<PivotReset>` child on any `<Monitor>`, alongside `<Drivetrain>`):
 ```xml
@@ -100,7 +107,7 @@ All monitors are loaded from XML; `WriteDefaultXml()` regenerates it if missing.
 
 `vehicleName` must match the `PlayerCurrentVehicle` global PlayMaker FsmString exactly. Multiple `<PivotReset>` elements across different monitors are all collected into `PivotResetConfig._configs` at load. To add a new vehicle: add a `<PivotReset>` element to the XML — no C# changes needed.
 
-Multiple `<Condition>` elements are AND-ed. If an object is not found at load time, the `ConditionRef` is retained and retried every tick (silent until resolved).
+Multiple `<Condition>` elements are AND-ed. If an object is not found at load time, the condition is retained and retried every tick (silent until resolved).
 
 ### Wear Reduction Logic (`ComponentMonitor.ApplyReduction`)
 
