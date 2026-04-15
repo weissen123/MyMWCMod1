@@ -314,7 +314,7 @@ namespace MyMWCMod1
                 }
 
                 public bool   IsResolved => _cachedField != null;
-                public string LogPrefix  => _logLabel + " field '" + _fieldName + "'";
+                public string LogPrefix  => _logLabel + " '" + _fieldName + "'";
 
                 public bool Evaluate()
                 {
