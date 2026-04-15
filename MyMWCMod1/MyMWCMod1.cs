@@ -340,7 +340,7 @@ namespace MyMWCMod1
                         System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
                     if (_cachedField != null)
                     {
-                        ModConsole.Log(_logLabel + " field '" + _fieldName + "' resolved = " + (float)_cachedField.GetValue(_cachedComp));
+                        ModConsole.Log(_logLabel + " '" + _fieldName + "' resolved = " + (float)_cachedField.GetValue(_cachedComp));
                         return (float)_cachedField.GetValue(_cachedComp) >= _minFloat;
                     }
 
