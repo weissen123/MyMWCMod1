@@ -350,15 +350,15 @@ namespace MyMWCMod1
 
             private class DrivetrainBoolSetting
             {
-                public SettingsCheckBox         Checkbox;
-                public Action<Drivetrain, bool> Setter;
+                public SettingsCheckBox          Checkbox;
+                public System.Reflection.FieldInfo Field;
                 public readonly List<ICondition> Conditions = new List<ICondition>(); // empty = always apply
 
                 public void Apply(Drivetrain drivetrain)
                 {
                     foreach (ICondition c in Conditions)
                         if (!c.Evaluate()) return;
-                    Setter(drivetrain, Checkbox.GetValue());
+                    Field.SetValue(drivetrain, Checkbox.GetValue());
                 }
             }
 
@@ -367,20 +367,8 @@ namespace MyMWCMod1
             private readonly List<DrivetrainBoolSetting> BoolSettings = new List<DrivetrainBoolSetting>();
 
             private static readonly List<DrivetrainMonitor>                       _instances        = new List<DrivetrainMonitor>();
-            private static readonly Dictionary<string, SettingsCheckBox>          _checkboxSettings = new Dictionary<string, SettingsCheckBox>();
-            private static readonly Dictionary<string, SettingsSlider>            _sliderSettings   = new Dictionary<string, SettingsSlider>();
-            private static readonly Dictionary<string, Action<Drivetrain, bool>>  _boolSetters
-                = new Dictionary<string, Action<Drivetrain, bool>>
-                {
-                    { "autoTransmission", (d, v) => d.automatic = v },
-                    { "canStall",         (d, v) => d.canStall  = v },
-                };
-            private static readonly Dictionary<string, Action<Drivetrain, float>> _floatSetters
-                = new Dictionary<string, Action<Drivetrain, float>>
-                {
-                    { "shiftUpRPM",   (d, v) => d.shiftUpRPM   = v },
-                    { "shiftDownRPM", (d, v) => d.shiftDownRPM = v },
-                };
+            private static readonly Dictionary<string, SettingsCheckBox> _checkboxSettings = new Dictionary<string, SettingsCheckBox>();
+            private static readonly Dictionary<string, SettingsSlider>  _sliderSettings   = new Dictionary<string, SettingsSlider>();
 
             public static void Add(DrivetrainMonitor monitor) { if (monitor != null) _instances.Add(monitor); }
 
@@ -458,32 +446,45 @@ namespace MyMWCMod1
                     s.Apply(Drivetrain);
             }
 
+            private System.Reflection.FieldInfo ResolveField(string id)
+            {
+                System.Reflection.FieldInfo fi = Drivetrain.GetType().GetField(
+                    id,
+                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                if (fi == null)
+                    ModConsole.Error("MyMWCMod1: field '" + id + "' not found on Drivetrain.");
+                return fi;
+            }
+
             private void ApplySliderSetting(XmlElement s, string id)
             {
-                SettingsSlider            slider;
-                Action<Drivetrain, float> setter;
-                if (_sliderSettings.TryGetValue(id, out slider) &&
-                    _floatSetters.TryGetValue(id, out setter))
-                    setter(Drivetrain, (float)slider.GetValue());
+                SettingsSlider slider;
+                if (!_sliderSettings.TryGetValue(id, out slider)) return;
+
+                System.Reflection.FieldInfo fi = ResolveField(id);
+                if (fi == null) return;
+
+                fi.SetValue(Drivetrain, (float)slider.GetValue());
             }
 
             private void ApplyCheckboxSetting(XmlElement s, string id)
             {
-                SettingsCheckBox         cb;
-                Action<Drivetrain, bool> setter;
-                if (!_checkboxSettings.TryGetValue(id, out cb) ||
-                    !_boolSetters.TryGetValue(id, out setter)) return;
+                SettingsCheckBox cb;
+                if (!_checkboxSettings.TryGetValue(id, out cb)) return;
+
+                System.Reflection.FieldInfo fi = ResolveField(id);
+                if (fi == null) return;
 
                 XmlNodeList condNodes = s.SelectNodes("Condition");
-                if (condNodes.Count == 0) { setter(Drivetrain, cb.GetValue()); return; }
+                if (condNodes.Count == 0) { fi.SetValue(Drivetrain, cb.GetValue()); return; }
 
-                BoolSettings.Add(BuildConditionedSetting(condNodes, id, cb, setter));
+                BoolSettings.Add(BuildConditionedSetting(condNodes, id, cb, fi));
             }
 
             private DrivetrainBoolSetting BuildConditionedSetting(XmlNodeList condNodes, string id,
-                SettingsCheckBox cb, Action<Drivetrain, bool> setter)
+                SettingsCheckBox cb, System.Reflection.FieldInfo field)
             {
-                DrivetrainBoolSetting boolSetting = new DrivetrainBoolSetting { Checkbox = cb, Setter = setter };
+                DrivetrainBoolSetting boolSetting = new DrivetrainBoolSetting { Checkbox = cb, Field = field };
                 foreach (XmlNode condNode in condNodes)
                 {
                     ICondition cond = BuildCondition((XmlElement)condNode, id);
@@ -726,7 +727,7 @@ namespace MyMWCMod1
 
   <Monitor label=""MACHTWAGEN"" path=""JOBS/TAXIJOB/MACHTWAGEN"">
     <Drivetrain>
-      <Setting id=""autoTransmission"" type=""checkbox"" label=""Automated Manual Transmission (AMT)"" default=""true"" />
+      <Setting id=""automatic"" type=""checkbox"" label=""Automated Manual Transmission (AMT)"" default=""true"" />
       <Setting id=""shiftUpRPM""       type=""slider""   label=""Shift Up RPM""                        min=""1000"" max=""8000"" default=""3500"" />
       <Setting id=""shiftDownRPM""     type=""slider""   label=""Shift Down RPM""                      min=""500""  max=""7000"" default=""1700"" />
     </Drivetrain>

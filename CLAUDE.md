@@ -128,7 +128,7 @@ Types: `Float`, `Int`, `Bool`. FSMs with no variables emit `N/A`.
 
 | Setting | ID | Default | Range |
 |---|---|---|---|
-| Automated Manual Transmission | `autoTransmission` | true | checkbox |
+| Automated Manual Transmission | `automatic` | true | checkbox |
 | Shift Up RPM | `shiftUpRPM` | 3500 | 1000–8000 |
 | Shift Down RPM | `shiftDownRPM` | 1700 | 500–7000 |
 | Corris Engine can stall | `canStall` | false | checkbox |
