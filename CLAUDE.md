@@ -65,6 +65,7 @@ MyMWCMod1/
 | `DrivetrainMonitor.DrivetrainBoolSetting` | Pairs a `SettingsCheckBox` with a `Drivetrain` property setter and a list of `ICondition` guards. |
 | `PivotResetConfig` | Self-contained pivot reset unit. Owns its static `_configs` list internally. Static `Init(xmlPath)` injects the xml path and resolves the vehicle `FsmString`. Static `Add`, `ResetCurrentPivot`, `SaveCurrentPivot` are the public interface. `Resolve()` finds the matching config and caches the active `GameObject` on the instance. `WriteToXml()` persists the pose back to the XML file. |
 | `GameObjectCsvDumper` | Recursively walks a GameObject hierarchy and writes all PlayMaker FSM variables to a CSV. `Dump(rootName)` is the single public entry point. |
+| `DrivetrainCsvDumper` | Finds all `Drivetrain` components under a root GameObject via `GetComponentsInChildren` and writes their public instance fields to a CSV via reflection. `Dump(rootName)` is the single public entry point. |
 
 ### XML Configuration (`Mods/MyMWCMod1_monitors.xml`)
 

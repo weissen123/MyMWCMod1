@@ -594,17 +594,48 @@ namespace MyMWCMod1
                     csv.AppendLine(safePath + ";" + safeFsm + ";Bool;\"" + bv.Name + "\";" + bv.Value);
             }
 
-            private static string GetGameObjectPath(GameObject obj)
+        }
+
+        private class DrivetrainCsvDumper
+        {
+            public static void Dump(string rootName)
             {
-                string path = obj.name;
-                Transform t = obj.transform;
-                while (t.parent != null)
-                {
-                    t = t.parent;
-                    path = t.name + "/" + path;
-                }
-                return path;
+                GameObject root = GameObject.Find(rootName);
+                if (root == null) { ModConsole.Error("[MWC Dumper] Could not find " + rootName); return; }
+
+                StringBuilder csv = new StringBuilder();
+                csv.AppendLine("GameObject Path;Field Name;Field Type;Value");
+
+                foreach (Drivetrain dt in root.GetComponentsInChildren<Drivetrain>())
+                    AppendRows(csv, dt);
+
+                string fileName = "MWC_Drivetrain_Dump_" + rootName.Replace("/", "_") + ".csv";
+                File.WriteAllText(fileName, csv.ToString());
+                ModConsole.Log("Dump complete: " + fileName + " saved to game folder.");
             }
+
+            private static void AppendRows(StringBuilder csv, Drivetrain dt)
+            {
+                string path = "\"" + GetGameObjectPath(dt.gameObject) + "\"";
+                foreach (System.Reflection.FieldInfo fi in dt.GetType().GetFields(
+                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
+                {
+                    object val = fi.GetValue(dt);
+                    csv.AppendLine(path + ";\"" + fi.Name + "\";" + fi.FieldType.Name + ";" + val);
+                }
+            }
+        }
+
+        private static string GetGameObjectPath(GameObject obj)
+        {
+            string path = obj.name;
+            Transform t = obj.transform;
+            while (t.parent != null)
+            {
+                t = t.parent;
+                path = t.name + "/" + path;
+            }
+            return path;
         }
 
         private SettingsKeybind _pivotResetKey;
@@ -624,8 +655,10 @@ namespace MyMWCMod1
             DrivetrainMonitor.RegisterSettings(XmlPath);
             _pivotResetKey = Keybind.Add("pivotReset", "Reset Player Pivot", KeyCode.Backslash);
             _pivotSaveKey  = Keybind.Add("savePivot",  "Save Player Pivot",  KeyCode.Backslash, KeyCode.LeftControl);
-            Settings.AddButton("Dump CORRIS FSM to CSV",    () => GameObjectCsvDumper.Dump("CORRIS"));
-            Settings.AddButton("Dump BACHGLOTZ FSM to CSV", () => GameObjectCsvDumper.Dump("BACHGLOTZ(1905kg)"));
+            Settings.AddButton("Dump CORRIS FSM to CSV",         () => GameObjectCsvDumper.Dump("CORRIS"));
+            Settings.AddButton("Dump BACHGLOTZ FSM to CSV",      () => GameObjectCsvDumper.Dump("BACHGLOTZ(1905kg)"));
+            Settings.AddButton("Dump CORRIS Drivetrain to CSV",   () => DrivetrainCsvDumper.Dump("CORRIS"));
+            Settings.AddButton("Dump MACHTWAGEN Drivetrain to CSV", () => DrivetrainCsvDumper.Dump("JOBS/TAXIJOB/MACHTWAGEN"));
         }
 
         private void EnsureXmlExists()
