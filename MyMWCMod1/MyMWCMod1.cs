@@ -604,7 +604,7 @@ namespace MyMWCMod1
                 if (root == null) { ModConsole.Error("[MWC Dumper] Could not find " + rootName); return; }
 
                 StringBuilder csv = new StringBuilder();
-                csv.AppendLine("GameObject Path;Field Name;Field Type;Value");
+                csv.AppendLine("GameObject Path;Field Name;Field Type;Access;Scope;Value");
 
                 foreach (Drivetrain dt in root.GetComponentsInChildren<Drivetrain>())
                     AppendRows(csv, dt);
@@ -618,10 +618,19 @@ namespace MyMWCMod1
             {
                 string path = "\"" + GetGameObjectPath(dt.gameObject) + "\"";
                 foreach (System.Reflection.FieldInfo fi in dt.GetType().GetFields(
-                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
+                    System.Reflection.BindingFlags.Public    |
+                    System.Reflection.BindingFlags.NonPublic |
+                    System.Reflection.BindingFlags.Instance  |
+                    System.Reflection.BindingFlags.Static))
                 {
-                    object val = fi.GetValue(dt);
-                    csv.AppendLine(path + ";\"" + fi.Name + "\";" + fi.FieldType.Name + ";" + val);
+                    string access = fi.IsPublic           ? "Public"            :
+                                    fi.IsPrivate          ? "Private"           :
+                                    fi.IsFamily           ? "Protected"         :
+                                    fi.IsAssembly         ? "Internal"          :
+                                                            "ProtectedInternal";
+                    string scope = fi.IsStatic ? "Static" : "Instance";
+                    object val   = fi.GetValue(dt);
+                    csv.AppendLine(path + ";\"" + fi.Name + "\";" + fi.FieldType.Name + ";" + access + ";" + scope + ";" + val);
                 }
             }
         }
