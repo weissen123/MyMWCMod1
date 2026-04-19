@@ -437,6 +437,11 @@ namespace MyMWCMod1
                     if (type == "slider")   { monitor.ApplySliderSetting(s, id);   continue; }
                     if (type == "checkbox") { monitor.ApplyCheckboxSetting(s, id); continue; }
                 }
+                XmlElement statsEl = (XmlElement)drivetrainEl.SelectSingleNode("Statistics");
+                if (statsEl != null)
+                    DrivetrainStatisticsCollector.Add(
+                        DrivetrainStatisticsCollector.LoadFromXml(statsEl, drivetrain, label));
+
                 return monitor.BoolSettings.Count > 0 ? monitor : null;
             }
 
@@ -536,6 +541,141 @@ namespace MyMWCMod1
                     return null;
                 }
                 return new ComponentFloatCondition(path, compName, varFloat, minFloat, id + ".Condition");
+            }
+        }
+
+        private class DrivetrainStatisticsCollector
+        {
+            private string                        _goName;
+            private string                        _fileNameBase;
+            private KeyCode                       _keyCode;
+            private System.Reflection.FieldInfo[] _fields;
+            private string[]                      _fieldNames;
+            private Drivetrain                    _drivetrain;
+
+            private bool          _collecting;
+            private float         _startTime;
+            private StringBuilder _csv;
+            private GUIStyle      _overlayStyle;
+
+            private static readonly List<DrivetrainStatisticsCollector> _instances
+                = new List<DrivetrainStatisticsCollector>();
+
+            public static void Add(DrivetrainStatisticsCollector c) { if (c != null) _instances.Add(c); }
+
+            public static void UpdateAll()  { foreach (DrivetrainStatisticsCollector c in _instances) c.CheckToggle(); }
+            public static void CollectAll() { foreach (DrivetrainStatisticsCollector c in _instances) c.Collect(); }
+            public static void DrawAll()    { foreach (DrivetrainStatisticsCollector c in _instances) c.DrawOverlay(); }
+
+            public static DrivetrainStatisticsCollector LoadFromXml(XmlElement statsEl, Drivetrain drivetrain, string goName)
+            {
+                string fileNameBase = statsEl.GetAttribute("fileName");
+                string keyCodeStr   = statsEl.GetAttribute("KeyCode");
+
+                if (string.IsNullOrEmpty(fileNameBase) || string.IsNullOrEmpty(keyCodeStr))
+                {
+                    ModConsole.Error("MyMWCMod1: <Statistics> for '" + goName + "' missing fileName or KeyCode — skipped.");
+                    return null;
+                }
+
+                KeyCode keyCode;
+                try { keyCode = (KeyCode)System.Enum.Parse(typeof(KeyCode), keyCodeStr, true); }
+                catch
+                {
+                    ModConsole.Error("MyMWCMod1: <Statistics> for '" + goName + "' invalid KeyCode '" + keyCodeStr + "' — skipped.");
+                    return null;
+                }
+
+                var fieldList = new List<System.Reflection.FieldInfo>();
+                var nameList  = new List<string>();
+                foreach (XmlNode child in statsEl.ChildNodes)
+                {
+                    if (child.NodeType != XmlNodeType.Element) continue;
+                    string fieldName = ((XmlElement)child).GetAttribute("field");
+                    System.Reflection.FieldInfo fi = drivetrain.GetType().GetField(
+                        fieldName,
+                        System.Reflection.BindingFlags.Public   |
+                        System.Reflection.BindingFlags.NonPublic |
+                        System.Reflection.BindingFlags.Instance);
+                    if (fi == null)
+                    {
+                        ModConsole.Error("MyMWCMod1: <Statistics> field '" + fieldName + "' not found on Drivetrain for '" + goName + "' — skipped.");
+                        continue;
+                    }
+                    fieldList.Add(fi);
+                    nameList.Add(fieldName);
+                }
+
+                if (fieldList.Count == 0)
+                {
+                    ModConsole.Error("MyMWCMod1: <Statistics> for '" + goName + "' has no valid fields — skipped.");
+                    return null;
+                }
+
+                return new DrivetrainStatisticsCollector
+                {
+                    _goName       = goName,
+                    _fileNameBase = fileNameBase,
+                    _keyCode      = keyCode,
+                    _fields       = fieldList.ToArray(),
+                    _fieldNames   = nameList.ToArray(),
+                    _drivetrain   = drivetrain,
+                };
+            }
+
+            private void CheckToggle()
+            {
+                if (!Input.GetKeyDown(_keyCode)) return;
+                if (_collecting) StopCollecting(); else StartCollecting();
+            }
+
+            private void StartCollecting()
+            {
+                _csv = new StringBuilder();
+                _csv.Append("Time(s)");
+                foreach (string n in _fieldNames) { _csv.Append(";"); _csv.Append(n); }
+                _csv.AppendLine();
+                _startTime  = Time.fixedTime;
+                _collecting = true;
+                ModConsole.Log("MyMWCMod1: Started collecting statistics for " + _goName + ".");
+            }
+
+            private void StopCollecting()
+            {
+                _collecting = false;
+                WriteCSV();
+            }
+
+            private void Collect()
+            {
+                if (!_collecting) return;
+                var ic = System.Globalization.CultureInfo.InvariantCulture;
+                _csv.Append((Time.fixedTime - _startTime).ToString("G", ic));
+                foreach (System.Reflection.FieldInfo fi in _fields)
+                {
+                    _csv.Append(";");
+                    _csv.Append(Convert.ToSingle(fi.GetValue(_drivetrain)).ToString("G", ic));
+                }
+                _csv.AppendLine();
+            }
+
+            private void WriteCSV()
+            {
+                string timestamp = System.DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                string fileName  = _fileNameBase + "_" + timestamp + ".csv";
+                File.WriteAllText(fileName, _csv.ToString());
+                ModConsole.Log("MyMWCMod1: Statistics written to " + fileName + ".");
+            }
+
+            private void DrawOverlay()
+            {
+                if (!_collecting) return;
+                if (_overlayStyle == null)
+                {
+                    _overlayStyle           = new GUIStyle(GUI.skin.label);
+                    _overlayStyle.alignment = TextAnchor.UpperCenter;
+                }
+                GUI.Label(new Rect(0, 0, Screen.width, 30), "Collecting statistics for " + _goName, _overlayStyle);
             }
         }
 
@@ -656,6 +796,7 @@ namespace MyMWCMod1
             SetupFunction(Setup.Update, Mod_Update);
             SetupFunction(Setup.FixedUpdate, Mod_FixedUpdate);
             SetupFunction(Setup.ModSettings, Mod_Settings);
+            SetupFunction(Setup.OnGUI, Mod_OnGUI);
         }
 
         private void Mod_Settings()
@@ -688,6 +829,7 @@ namespace MyMWCMod1
 
         private void Mod_Update()
         {
+            DrivetrainStatisticsCollector.UpdateAll();
             if (_pivotSaveKey.GetKeybindDown())  { PivotResetConfig.SaveCurrentPivot();  return; }
             if (_pivotResetKey.GetKeybindDown()) { PivotResetConfig.ResetCurrentPivot(); return; }
         }
@@ -696,6 +838,12 @@ namespace MyMWCMod1
         {
             ComponentMonitor.ApplyAll();
             DrivetrainMonitor.ApplyAll();
+            DrivetrainStatisticsCollector.CollectAll();
+        }
+
+        private void Mod_OnGUI()
+        {
+            DrivetrainStatisticsCollector.DrawAll();
         }
 
         private void SetupMonitors()
@@ -787,6 +935,22 @@ namespace MyMWCMod1
         <Condition fsmName=""Cylinders"" fsmBool=""CombustionOK"" path=""CORRIS/Simulation/Engine/Combustion"" />
         <Condition path=""CORRIS"" CompName=""Drivetrain"" varFloat=""rpm"" minFloat=""400"" />
       </Setting>
+      <Statistics fileName=""MWC_Drivetrain_Stat_CORRIS"" KeyCode=""KeypadEnter"">
+        <Statistic field=""torque"" />
+        <Statistic field=""netTorque"" />
+        <Statistic field=""wheelTireVelo"" />
+        <Statistic field=""clutchPosition"" />
+        <Statistic field=""throttle"" />
+        <Statistic field=""TransferredTorque"" />
+        <Statistic field=""differentialSpeed"" />
+        <Statistic field=""gear"" />
+        <Statistic field=""rpm"" />
+        <Statistic field=""slipRatio"" />
+        <Statistic field=""currentPower"" />
+        <Statistic field=""powerMultiplier"" />
+        <Statistic field=""lastGearRatio"" />
+        <Statistic field=""velo"" />
+      </Statistics>
     </Drivetrain>
     <PivotReset vehicleName=""Corris""
       playerPath=""CORRIS/Functions/DriverHeadPivot/CameraPivotPLR/SeatPivot/PLAYER""

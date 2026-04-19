@@ -49,9 +49,10 @@ MyMWCMod1/
 - **Entry point:** `MyMWCMod1.cs` — inherits from `MSCLoader.Mod`
 - **Lifecycle hooks registered in `ModSetup()`:**
   - `OnLoad` → `Mod_OnLoad`: calls `SetupMonitors()` then `PivotResetConfig.Init(xmlPath)` — resolves game objects and FSM references
-  - `Update` → `Mod_Update`: dispatches keybind presses to `PivotResetConfig.ResetCurrentPivot()` or `PivotResetConfig.SaveCurrentPivot()`
-  - `FixedUpdate` → `Mod_FixedUpdate`: calls `ComponentMonitor.ApplyAll()` and `DrivetrainMonitor.ApplyAll()` every physics tick
+  - `Update` → `Mod_Update`: calls `DrivetrainStatisticsCollector.UpdateAll()`, then dispatches keybind presses to `PivotResetConfig.ResetCurrentPivot()` or `PivotResetConfig.SaveCurrentPivot()`
+  - `FixedUpdate` → `Mod_FixedUpdate`: calls `ComponentMonitor.ApplyAll()`, `DrivetrainMonitor.ApplyAll()`, and `DrivetrainStatisticsCollector.CollectAll()` every physics tick
   - `ModSettings` → `Mod_Settings`: calls `DrivetrainMonitor.RegisterSettings(XmlPath)` to register in-game settings UI from XML, registers the `Reset Player Pivot` and `Save Player Pivot` keybinds, and adds CSV dump buttons
+  - `OnGUI` → `Mod_OnGUI`: calls `DrivetrainStatisticsCollector.DrawAll()` to render the collection overlay
 
 ### Inner Classes
 
@@ -66,6 +67,7 @@ MyMWCMod1/
 | `PivotResetConfig` | Self-contained pivot reset unit. Owns its static `_configs` list internally. Static `Init(xmlPath)` injects the xml path and resolves the vehicle `FsmString`. Static `Add`, `ResetCurrentPivot`, `SaveCurrentPivot` are the public interface. `Resolve()` finds the matching config and caches the active `GameObject` on the instance. `WriteToXml()` persists the pose back to the XML file. |
 | `GameObjectCsvDumper` | Recursively walks a GameObject hierarchy and writes all PlayMaker FSM variables to a CSV. `Dump(rootName)` is the single public entry point. |
 | `DrivetrainCsvDumper` | Finds all `Drivetrain` components under a root GameObject via `GetComponentsInChildren` and writes their public instance fields to a CSV via reflection. `Dump(rootName)` is the single public entry point. |
+| `DrivetrainStatisticsCollector` | Per-tick Drivetrain field recorder. Toggled by a configurable hotkey (`Input.GetKeyDown`); shows a top-center overlay while active; writes a timestamped CSV on stop. Fields resolved at load time via reflection. Owns its static `_instances` list; `LoadFromXml` constructs from `<Statistics>` inside `<Drivetrain>`; `UpdateAll`/`CollectAll`/`DrawAll` are the tick-dispatch entry points. |
 
 ### XML Configuration (`Mods/MyMWCMod1_monitors.xml`)
 
@@ -109,6 +111,23 @@ Two `<Condition>` forms are supported (discriminated by attribute presence):
 `vehicleName` must match the `PlayerCurrentVehicle` global PlayMaker FsmString exactly. Multiple `<PivotReset>` elements across different monitors are all collected into `PivotResetConfig._configs` at load. To add a new vehicle: add a `<PivotReset>` element to the XML — no C# changes needed.
 
 Multiple `<Condition>` elements are AND-ed. If an object is not found at load time, the condition is retained and retried every tick (silent until resolved).
+
+**Statistics collector** (`<Statistics>` child inside `<Drivetrain>`, alongside `<Setting>` elements):
+```xml
+<Drivetrain>
+  <Setting .../>
+  <Statistics fileName="MWC_Drivetrain_Stat_CORRIS" KeyCode="KeypadEnter">
+    <Statistic field="torque" />
+    <Statistic field="rpm" />
+  </Statistics>
+</Drivetrain>
+```
+
+- `fileName`: base name for the output file; timestamp is appended automatically (`fileName_yyyyMMdd_HHmmss.csv`).
+- `KeyCode`: Unity `KeyCode` enum name (case-insensitive). Press once to start, press again to stop and write.
+- `<Statistic field="...">`: each `field` must match a `Drivetrain` field name (public or private, instance). Unknown fields are logged and skipped at load.
+- CSV format: `Time(s);field1;field2;...` with `InvariantCulture` decimal separators.
+- Statistics registration is independent of `<Setting>` — a `<Drivetrain>` with only `<Statistics>` (no `<Setting>` elements) creates a collector with no `DrivetrainMonitor`.
 
 ### Wear Reduction Logic (`ComponentMonitor.ApplyReduction`)
 
