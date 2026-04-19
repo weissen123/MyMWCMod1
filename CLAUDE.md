@@ -68,6 +68,7 @@ MyMWCMod1/
 | `GameObjectCsvDumper` | Recursively walks a GameObject hierarchy and writes all PlayMaker FSM variables to a CSV. `Dump(rootName)` is the single public entry point. |
 | `DrivetrainCsvDumper` | Finds all `Drivetrain` components under a root GameObject via `GetComponentsInChildren` and writes their public instance fields to a CSV via reflection. `Dump(rootName)` is the single public entry point. |
 | `DrivetrainStatisticsCollector` | Per-tick Drivetrain field recorder. Toggled by a configurable hotkey (`Input.GetKeyDown`); shows a top-center overlay while active; writes a timestamped CSV on stop. Fields resolved at load time via reflection. Owns its static `_instances` list; `LoadFromXml` constructs from `<Statistics>` inside `<Drivetrain>`; `UpdateAll`/`CollectAll`/`DrawAll` are the tick-dispatch entry points. |
+| `TorqueConverterSimulator` | Per-tick torque converter physics. Each tick reads `engineAngularVelo`, `differentialSpeed`, `finalDriveRatio`, `torque`, `frictionTorque`, `gear` via reflection; computes ν, T_drag, R(ν); writes back `frictionTorque` and `finalDriveRatio`. Skips ticks where ω_in ≤ 0 or gear is not in the ratio table. Owns `_instances`; `LoadFromXml` constructs from `<TorqueConverter>` inside `<Drivetrain>`; `ApplyAll` is the tick entry point. |
 
 ### XML Configuration (`Mods/MyMWCMod1_monitors.xml`)
 
@@ -130,6 +131,21 @@ Multiple `<Condition>` elements are AND-ed. If an object is not found at load ti
 - CSV is sampled at 10 Hz (one row per 100 ms); overlay updates every OnGUI frame.
 - CSV format: `Time(s);field1;field2;...` with `InvariantCulture` decimal separators.
 - Statistics registration is independent of `<Setting>` — a `<Drivetrain>` with only `<Statistics>` (no `<Setting>` elements) creates a collector with no `DrivetrainMonitor`.
+
+**Torque converter** (`<TorqueConverter>` child inside `<Drivetrain>`, alongside `<Setting>` and `<Statistics>`):
+```xml
+<TorqueConverter tStall="145" wStall="209" rStall="2">
+  <GearRatio gear="2" ratio="10.6116" />
+  <GearRatio gear="3" ratio="6.438" />
+  <GearRatio gear="4" ratio="4.44" />
+</TorqueConverter>
+```
+
+- `tStall`: stall torque (N·m) — T_drag when ω_in = ω_stall and ν = 0.
+- `wStall`: engine angular velocity (rad/s) at stall — 209 ≈ 2000 RPM.
+- `rStall`: torque ratio at stall (T_out / T_drag when ν = 0).
+- `<GearRatio gear="N" ratio="V">`: fixed drivetrain ratio for gear N. Active gears only; other gears skip the simulation tick.
+- Per tick: reads `engineAngularVelo`, `differentialSpeed`, `finalDriveRatio`, `torque`, `frictionTorque`, `gear`; writes `frictionTorque` and `finalDriveRatio`.
 
 ### Wear Reduction Logic (`ComponentMonitor.ApplyReduction`)
 

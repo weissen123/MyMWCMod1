@@ -445,6 +445,11 @@ namespace MyMWCMod1
                     DrivetrainStatisticsCollector.Add(
                         DrivetrainStatisticsCollector.LoadFromXml(statsEl, drivetrain, label));
 
+                XmlElement tcEl = (XmlElement)drivetrainEl.SelectSingleNode("TorqueConverter");
+                if (tcEl != null)
+                    TorqueConverterSimulator.Add(
+                        TorqueConverterSimulator.LoadFromXml(tcEl, drivetrain, label));
+
                 return monitor.BoolSettings.Count > 0 ? monitor : null;
             }
 
@@ -707,6 +712,123 @@ namespace MyMWCMod1
             }
         }
 
+        private class TorqueConverterSimulator
+        {
+            private Drivetrain             _drivetrain;
+            private float                  _tStall;
+            private float                  _wStall;
+            private float                  _rStall;
+            private Dictionary<int, float> _gearRatios;
+
+            private System.Reflection.FieldInfo _fEngineAngularVelo;
+            private System.Reflection.FieldInfo _fDifferentialSpeed;
+            private System.Reflection.FieldInfo _fFinalDriveRatio;
+            private System.Reflection.FieldInfo _fTorque;
+            private System.Reflection.FieldInfo _fFrictionTorque;
+            private System.Reflection.FieldInfo _fGear;
+
+            private static readonly List<TorqueConverterSimulator> _instances
+                = new List<TorqueConverterSimulator>();
+
+            public static void Reset()    { _instances.Clear(); }
+            public static void Add(TorqueConverterSimulator s) { if (s != null) _instances.Add(s); }
+            public static void ApplyAll() { foreach (TorqueConverterSimulator s in _instances) s.Apply(); }
+
+            public static TorqueConverterSimulator LoadFromXml(XmlElement el, Drivetrain drivetrain, string goName)
+            {
+                var ns = System.Globalization.NumberStyles.Float;
+                var ic = System.Globalization.CultureInfo.InvariantCulture;
+
+                float tStall, wStall, rStall;
+                if (!float.TryParse(el.GetAttribute("tStall"), ns, ic, out tStall) ||
+                    !float.TryParse(el.GetAttribute("wStall"), ns, ic, out wStall) ||
+                    !float.TryParse(el.GetAttribute("rStall"), ns, ic, out rStall))
+                {
+                    ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' missing or invalid tStall/wStall/rStall — skipped.");
+                    return null;
+                }
+
+                var gearRatios = new Dictionary<int, float>();
+                foreach (XmlNode child in el.ChildNodes)
+                {
+                    if (child.NodeType != XmlNodeType.Element) continue;
+                    XmlElement gearEl = (XmlElement)child;
+                    int   gear;
+                    float ratio;
+                    if (int.TryParse(gearEl.GetAttribute("gear"), out gear) &&
+                        float.TryParse(gearEl.GetAttribute("ratio"), ns, ic, out ratio))
+                        gearRatios[gear] = ratio;
+                    else
+                        ModConsole.Error("MyMWCMod1: <GearRatio> for '" + goName + "' invalid gear/ratio — skipped.");
+                }
+
+                if (gearRatios.Count == 0)
+                {
+                    ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' has no valid gear ratios — skipped.");
+                    return null;
+                }
+
+                System.Reflection.BindingFlags bf =
+                    System.Reflection.BindingFlags.Public   |
+                    System.Reflection.BindingFlags.NonPublic |
+                    System.Reflection.BindingFlags.Instance;
+                Type dt = drivetrain.GetType();
+
+                System.Reflection.FieldInfo fEngineAngularVelo = dt.GetField("engineAngularVelo", bf);
+                System.Reflection.FieldInfo fDifferentialSpeed = dt.GetField("differentialSpeed", bf);
+                System.Reflection.FieldInfo fFinalDriveRatio   = dt.GetField("finalDriveRatio",   bf);
+                System.Reflection.FieldInfo fTorque            = dt.GetField("torque",            bf);
+                System.Reflection.FieldInfo fFrictionTorque    = dt.GetField("frictionTorque",    bf);
+                System.Reflection.FieldInfo fGear              = dt.GetField("gear",              bf);
+
+                if (fEngineAngularVelo == null || fDifferentialSpeed == null || fFinalDriveRatio == null ||
+                    fTorque == null            || fFrictionTorque    == null || fGear            == null)
+                {
+                    ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' could not resolve one or more Drivetrain fields — skipped.");
+                    return null;
+                }
+
+                return new TorqueConverterSimulator
+                {
+                    _drivetrain          = drivetrain,
+                    _tStall              = tStall,
+                    _wStall              = wStall,
+                    _rStall              = rStall,
+                    _gearRatios          = gearRatios,
+                    _fEngineAngularVelo  = fEngineAngularVelo,
+                    _fDifferentialSpeed  = fDifferentialSpeed,
+                    _fFinalDriveRatio    = fFinalDriveRatio,
+                    _fTorque             = fTorque,
+                    _fFrictionTorque     = fFrictionTorque,
+                    _fGear               = fGear,
+                };
+            }
+
+            private void Apply()
+            {
+                float wIn = (float)_fEngineAngularVelo.GetValue(_drivetrain);
+                if (wIn <= 0f) return;
+
+                int   gear      = (int)_fGear.GetValue(_drivetrain);
+                float baseRatio;
+                if (!_gearRatios.TryGetValue(gear, out baseRatio)) return;
+
+                float wOut  = (float)_fDifferentialSpeed.GetValue(_drivetrain)
+                            * (float)_fFinalDriveRatio.GetValue(_drivetrain);
+                float nu    = wOut / wIn;
+                float wRatio = wIn / _wStall;
+                float tDrag = _tStall * wRatio * wRatio * (1f - nu);
+                float R     = nu < 0.9f
+                            ? _rStall - (_rStall - 1f) * (nu / 0.9f)
+                            : 1.0f;
+                float tOut  = tDrag * R;
+
+                float torque = (float)_fTorque.GetValue(_drivetrain);
+                _fFrictionTorque.SetValue(_drivetrain, torque - tOut);
+                _fFinalDriveRatio.SetValue(_drivetrain, baseRatio * R);
+            }
+        }
+
         private class GameObjectCsvDumper
         {
             public static void Dump(string rootName)
@@ -866,6 +988,7 @@ namespace MyMWCMod1
         {
             ComponentMonitor.ApplyAll();
             DrivetrainMonitor.ApplyAll();
+            TorqueConverterSimulator.ApplyAll();
             DrivetrainStatisticsCollector.CollectAll();
         }
 
@@ -879,6 +1002,7 @@ namespace MyMWCMod1
             ComponentMonitor.Reset();
             DrivetrainMonitor.Reset();
             DrivetrainStatisticsCollector.Reset();
+            TorqueConverterSimulator.Reset();
             PivotResetConfig.Reset();
             string xmlPath = XmlPath;
             EnsureXmlExists();
@@ -984,6 +1108,11 @@ namespace MyMWCMod1
         <Statistic field=""currentPower"" />
         <Statistic field=""powerMultiplier"" />
       </Statistics>
+      <TorqueConverter tStall=""145"" wStall=""209"" rStall=""2"">
+        <GearRatio gear=""2"" ratio=""10.6116"" />
+        <GearRatio gear=""3"" ratio=""6.438"" />
+        <GearRatio gear=""4"" ratio=""4.44"" />
+      </TorqueConverter>
     </Drivetrain>
     <PivotReset vehicleName=""Corris""
       playerPath=""CORRIS/Functions/DriverHeadPivot/CameraPivotPLR/SeatPivot/PLAYER""
