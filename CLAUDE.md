@@ -126,6 +126,8 @@ Multiple `<Condition>` elements are AND-ed. If an object is not found at load ti
 - `fileName`: base name for the output file; timestamp is appended automatically (`fileName_yyyyMMdd_HHmmss.csv`).
 - `KeyCode`: Unity `KeyCode` enum name (case-insensitive). Press once to start, press again to stop and write.
 - `<Statistic field="...">`: each `field` must match a `Drivetrain` field name (public or private, instance). Unknown fields are logged and skipped at load.
+- `live="X"` (optional): marks a field for live display in the overlay during collection. Omit the attribute to record in CSV only.
+- CSV is sampled at 10 Hz (one row per 100 ms); overlay updates every OnGUI frame.
 - CSV format: `Time(s);field1;field2;...` with `InvariantCulture` decimal separators.
 - Statistics registration is independent of `<Setting>` — a `<Drivetrain>` with only `<Statistics>` (no `<Setting>` elements) creates a collector with no `DrivetrainMonitor`.
 

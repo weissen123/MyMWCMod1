@@ -551,10 +551,13 @@ namespace MyMWCMod1
             private KeyCode                       _keyCode;
             private System.Reflection.FieldInfo[] _fields;
             private string[]                      _fieldNames;
+            private System.Reflection.FieldInfo[] _liveFields;
+            private string[]                      _liveFieldNames;
             private Drivetrain                    _drivetrain;
 
             private bool          _collecting;
             private float         _startTime;
+            private float         _nextCollectTime;
             private StringBuilder _csv;
             private GUIStyle      _overlayStyle;
 
@@ -586,12 +589,15 @@ namespace MyMWCMod1
                     return null;
                 }
 
-                var fieldList = new List<System.Reflection.FieldInfo>();
-                var nameList  = new List<string>();
+                var fieldList     = new List<System.Reflection.FieldInfo>();
+                var nameList      = new List<string>();
+                var liveFieldList = new List<System.Reflection.FieldInfo>();
+                var liveNameList  = new List<string>();
                 foreach (XmlNode child in statsEl.ChildNodes)
                 {
                     if (child.NodeType != XmlNodeType.Element) continue;
-                    string fieldName = ((XmlElement)child).GetAttribute("field");
+                    XmlElement statEl   = (XmlElement)child;
+                    string     fieldName = statEl.GetAttribute("field");
                     System.Reflection.FieldInfo fi = drivetrain.GetType().GetField(
                         fieldName,
                         System.Reflection.BindingFlags.Public   |
@@ -604,6 +610,11 @@ namespace MyMWCMod1
                     }
                     fieldList.Add(fi);
                     nameList.Add(fieldName);
+                    if (!string.IsNullOrEmpty(statEl.GetAttribute("live")))
+                    {
+                        liveFieldList.Add(fi);
+                        liveNameList.Add(fieldName);
+                    }
                 }
 
                 if (fieldList.Count == 0)
@@ -614,12 +625,14 @@ namespace MyMWCMod1
 
                 return new DrivetrainStatisticsCollector
                 {
-                    _goName       = goName,
-                    _fileNameBase = fileNameBase,
-                    _keyCode      = keyCode,
-                    _fields       = fieldList.ToArray(),
-                    _fieldNames   = nameList.ToArray(),
-                    _drivetrain   = drivetrain,
+                    _goName          = goName,
+                    _fileNameBase    = fileNameBase,
+                    _keyCode         = keyCode,
+                    _fields          = fieldList.ToArray(),
+                    _fieldNames      = nameList.ToArray(),
+                    _liveFields      = liveFieldList.ToArray(),
+                    _liveFieldNames  = liveNameList.ToArray(),
+                    _drivetrain      = drivetrain,
                 };
             }
 
@@ -635,8 +648,9 @@ namespace MyMWCMod1
                 _csv.Append("Time(s)");
                 foreach (string n in _fieldNames) { _csv.Append(";"); _csv.Append(n); }
                 _csv.AppendLine();
-                _startTime  = Time.fixedTime;
-                _collecting = true;
+                _startTime        = Time.fixedTime;
+                _nextCollectTime  = 0f;
+                _collecting       = true;
                 ModConsole.Log("MyMWCMod1: Started collecting statistics for " + _goName + ".");
             }
 
@@ -649,6 +663,8 @@ namespace MyMWCMod1
             private void Collect()
             {
                 if (!_collecting) return;
+                if (Time.fixedTime < _nextCollectTime) return;
+                _nextCollectTime = Time.fixedTime + 0.1f;
                 var ic = System.Globalization.CultureInfo.InvariantCulture;
                 _csv.Append((Time.fixedTime - _startTime).ToString("G", ic));
                 foreach (System.Reflection.FieldInfo fi in _fields)
@@ -675,7 +691,15 @@ namespace MyMWCMod1
                     _overlayStyle           = new GUIStyle(GUI.skin.label);
                     _overlayStyle.alignment = TextAnchor.UpperCenter;
                 }
-                GUI.Label(new Rect(0, 0, Screen.width, 30), "Collecting statistics for " + _goName, _overlayStyle);
+                var ic = System.Globalization.CultureInfo.InvariantCulture;
+                var sb = new StringBuilder("Collecting statistics for " + _goName);
+                for (int i = 0; i < _liveFields.Length; i++)
+                {
+                    sb.Append("\n").Append(_liveFieldNames[i]).Append(": ")
+                      .Append(Convert.ToSingle(_liveFields[i].GetValue(_drivetrain)).ToString("F3", ic));
+                }
+                float height = 20f + _liveFields.Length * 20f;
+                GUI.Label(new Rect(0, 0, Screen.width, height), sb.ToString(), _overlayStyle);
             }
         }
 
@@ -936,20 +960,21 @@ namespace MyMWCMod1
         <Condition path=""CORRIS"" CompName=""Drivetrain"" varFloat=""rpm"" minFloat=""400"" />
       </Setting>
       <Statistics fileName=""MWC_Drivetrain_Stat_CORRIS"" KeyCode=""KeypadEnter"">
-        <Statistic field=""torque"" />
-        <Statistic field=""netTorque"" />
-        <Statistic field=""wheelTireVelo"" />
-        <Statistic field=""clutchPosition"" />
-        <Statistic field=""throttle"" />
-        <Statistic field=""TransferredTorque"" />
-        <Statistic field=""differentialSpeed"" />
         <Statistic field=""gear"" />
-        <Statistic field=""rpm"" />
+        <Statistic field=""throttle"" />
+        <Statistic field=""rpm""                live=""X"" />
+        <Statistic field=""engineAngularVelo""  live=""X"" />
+        <Statistic field=""clutchSpeed""        live=""X"" />
+        <Statistic field=""differentialSpeed""  live=""X"" />
+        <Statistic field=""finalDriveRatio""    live=""X"" />
+        <Statistic field=""torque""             live=""X"" />
+        <Statistic field=""frictionTorque""     live=""X"" />
+        <Statistic field=""netTorque""          live=""X"" />
+        <Statistic field=""velo"" />
+        <Statistic field=""wheelTireVelo"" />
         <Statistic field=""slipRatio"" />
         <Statistic field=""currentPower"" />
         <Statistic field=""powerMultiplier"" />
-        <Statistic field=""lastGearRatio"" />
-        <Statistic field=""velo"" />
       </Statistics>
     </Drivetrain>
     <PivotReset vehicleName=""Corris""
