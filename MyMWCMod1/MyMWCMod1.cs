@@ -106,6 +106,7 @@ namespace MyMWCMod1
 
             private static readonly List<ComponentMonitor> _instances = new List<ComponentMonitor>();
 
+            public static void Reset() { _instances.Clear(); }
             public static void Add(ComponentMonitor monitor) { _instances.Add(monitor); }
 
             public static void ApplyAll()
@@ -128,6 +129,7 @@ namespace MyMWCMod1
             private static FsmString                        _vehicleString;
             private static string                           _xmlPath;
 
+            public static void Reset() { _configs.Clear(); }
             public static void Add(PivotResetConfig config) { _configs.Add(config); }
 
             public static void Init(string xmlPath)
@@ -370,6 +372,7 @@ namespace MyMWCMod1
             private static readonly Dictionary<string, SettingsCheckBox> _checkboxSettings = new Dictionary<string, SettingsCheckBox>();
             private static readonly Dictionary<string, SettingsSlider>  _sliderSettings   = new Dictionary<string, SettingsSlider>();
 
+            public static void Reset() { _instances.Clear(); }
             public static void Add(DrivetrainMonitor monitor) { if (monitor != null) _instances.Add(monitor); }
 
             public static void ApplyAll()
@@ -564,6 +567,7 @@ namespace MyMWCMod1
             private static readonly List<DrivetrainStatisticsCollector> _instances
                 = new List<DrivetrainStatisticsCollector>();
 
+            public static void Reset() { _instances.Clear(); }
             public static void Add(DrivetrainStatisticsCollector c) { if (c != null) _instances.Add(c); }
 
             public static void UpdateAll()  { foreach (DrivetrainStatisticsCollector c in _instances) c.CheckToggle(); }
@@ -872,6 +876,10 @@ namespace MyMWCMod1
 
         private void SetupMonitors()
         {
+            ComponentMonitor.Reset();
+            DrivetrainMonitor.Reset();
+            DrivetrainStatisticsCollector.Reset();
+            PivotResetConfig.Reset();
             string xmlPath = XmlPath;
             EnsureXmlExists();
             XmlDocument doc = new XmlDocument();
