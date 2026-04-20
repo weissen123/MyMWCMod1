@@ -726,6 +726,8 @@ namespace MyMWCMod1
             private System.Reflection.FieldInfo _fGear;
             private System.Reflection.FieldInfo _fNetTorque;
             private System.Reflection.FieldInfo _fFinalDriveRatio;
+            private System.Reflection.FieldInfo _fTorque;
+            private System.Reflection.FieldInfo _fFrictionTorque;
 
             private bool     _hasData;
             private float    _lastNetTorque;
@@ -735,6 +737,8 @@ namespace MyMWCMod1
             private float    _lastOriginalFinalDriveRatio;
             private float    _lastUpdatedFinalDriveRatio;
             private float    _lastTDragFactor;
+            private float    _lastTDrag;
+            private float    _lastFrictionTorque;
             private GUIStyle _overlayStyle;
 
             private static readonly List<TorqueConverterSimulator> _instances
@@ -790,10 +794,13 @@ namespace MyMWCMod1
                 System.Reflection.FieldInfo fGear              = dt.GetField("gear",              bf);
                 System.Reflection.FieldInfo fNetTorque         = dt.GetField("netTorque",         bf);
                 System.Reflection.FieldInfo fFinalDriveRatio   = dt.GetField("finalDriveRatio",   bf);
+                System.Reflection.FieldInfo fTorque            = dt.GetField("torque",            bf);
+                System.Reflection.FieldInfo fFrictionTorque    = dt.GetField("frictionTorque",    bf);
 
                 if (fEngineAngularVelo == null || fDifferentialSpeed == null ||
                     fGear             == null  || fNetTorque         == null  ||
-                    fFinalDriveRatio  == null)
+                    fFinalDriveRatio  == null  || fTorque            == null  ||
+                    fFrictionTorque   == null)
                 {
                     ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' could not resolve one or more Drivetrain fields — skipped.");
                     return null;
@@ -812,6 +819,8 @@ namespace MyMWCMod1
                     _fGear              = fGear,
                     _fNetTorque         = fNetTorque,
                     _fFinalDriveRatio   = fFinalDriveRatio,
+                    _fTorque            = fTorque,
+                    _fFrictionTorque    = fFrictionTorque,
                 };
             }
 
@@ -825,22 +834,25 @@ namespace MyMWCMod1
                 float baseRatio;
                 if (!_gearRatios.TryGetValue(gear, out baseRatio)) return;
 
+                float torque = (float)_fTorque.GetValue(_drivetrain);
                 float wOut   = (float)_fDifferentialSpeed.GetValue(_drivetrain) * baseRatio;
                 float nu     = wOut / wIn;
                 float wRatio = wIn / _wStall;
-                float tDrag  = _tStall * wRatio * wRatio * (1f - nu);
+                float tDrag  = torque * wRatio * wRatio * (1f - nu);
                 float R      = nu < 0.9f
                              ? _rStall - (_rStall - 1f) * (nu / 0.9f)
                              : 1.0f;
 
-                _lastNuRatio                = wIn / wOut;
-                _lastR                      = R;
-                _lastTDragFactor            = wRatio * wRatio * (1f - nu);
-                _lastTOut                   = tDrag * R;
-                _lastNetTorque              = (float)_fNetTorque.GetValue(_drivetrain);
+                _lastNuRatio                 = wIn / wOut;
+                _lastR                       = R;
+                _lastTDragFactor             = wRatio * wRatio * (1f - nu);
+                _lastTDrag                   = tDrag;
+                _lastTOut                    = tDrag * R;
+                _lastNetTorque               = (float)_fNetTorque.GetValue(_drivetrain);
+                _lastFrictionTorque          = (float)_fFrictionTorque.GetValue(_drivetrain);
                 _lastOriginalFinalDriveRatio = (float)_fFinalDriveRatio.GetValue(_drivetrain);
                 _lastUpdatedFinalDriveRatio  = baseRatio * R;
-                _hasData                    = true;
+                _hasData                     = true;
 
                 // disabled: writing finalDriveRatio locks ω_out/ω_in, making TCC always applied
                 //_fFinalDriveRatio.SetValue(_drivetrain, _lastUpdatedFinalDriveRatio);
@@ -858,12 +870,14 @@ namespace MyMWCMod1
                 string text = _goName + " TC:"
                     + "\nnetTorque: "     + _lastNetTorque.ToString("F2", ic)
                     + "  T_out: "         + _lastTOut.ToString("F2", ic)
+                    + "\nfrictionTorque: " + _lastFrictionTorque.ToString("F2", ic)
+                    + "  T_drag: "         + _lastTDrag.ToString("F2", ic)
                     + "\nω_in/ω_out: "    + _lastNuRatio.ToString("F3", ic)
                     + "  R(ν): "          + _lastR.ToString("F3", ic)
                     + "\nfinalDriveRatio: " + _lastOriginalFinalDriveRatio.ToString("F4", ic)
                     + "  → "              + _lastUpdatedFinalDriveRatio.ToString("F4", ic)
                     + "\n(ω_in/ω_stall)²×(1−ν): " + _lastTDragFactor.ToString("F4", ic);
-                GUI.Label(new Rect(10, 10, 500, 100), text, _overlayStyle);
+                GUI.Label(new Rect(10, 10, 500, 120), text, _overlayStyle);
             }
         }
 
