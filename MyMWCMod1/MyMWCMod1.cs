@@ -840,7 +840,7 @@ namespace MyMWCMod1
                 _lastUpdatedFinalDriveRatio  = baseRatio * R;
                 _hasData                    = true;
 
-                // disabled: writing finalDriveRatio locks ω_out/ω_in, making TC always applied
+                // disabled: writing finalDriveRatio locks ω_out/ω_in, making TCC always applied
                 //_fFinalDriveRatio.SetValue(_drivetrain, _lastUpdatedFinalDriveRatio);
             }
 
