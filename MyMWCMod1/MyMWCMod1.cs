@@ -826,7 +826,7 @@ namespace MyMWCMod1
                              ? _rStall - (_rStall - 1f) * (nu / 0.9f)
                              : 1.0f;
 
-                _lastNuRatio   = nu;
+                _lastNuRatio   = wIn / wOut;
                 _lastR         = R;
                 _lastTOut      = tDrag * R;
                 _lastNetTorque = (float)_fNetTorque.GetValue(_drivetrain);
@@ -845,7 +845,7 @@ namespace MyMWCMod1
                 string text = _goName + " TC:"
                     + "\nnetTorque: " + _lastNetTorque.ToString("F2", ic)
                     + "  T_out: "    + _lastTOut.ToString("F2", ic)
-                    + "\nω_out/ω_in: " + _lastNuRatio.ToString("F3", ic)
+                    + "\nω_in/ω_out: " + _lastNuRatio.ToString("F3", ic)
                     + "  R(ν): "    + _lastR.ToString("F3", ic);
                 GUI.Label(new Rect(10, 10, 500, 60), text, _overlayStyle);
             }
