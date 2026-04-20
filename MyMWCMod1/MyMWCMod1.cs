@@ -846,7 +846,11 @@ namespace MyMWCMod1
                                     : 1.0f;
                 float tOut          = tDrag * R;
 
-                if (tOut > netTorque) { tOut = netTorque; tDrag = frictionTorque; }
+                if (tOut > netTorque)
+                {
+                    _fNetTorque.SetValue(_drivetrain, tOut);
+                    _fFrictionTorque.SetValue(_drivetrain, torque - tOut);
+                }
 
                 _lastNuRatio                 = wIn / wOut;
                 _lastR                       = R;
