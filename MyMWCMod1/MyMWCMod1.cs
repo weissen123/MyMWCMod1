@@ -734,6 +734,7 @@ namespace MyMWCMod1
             private float    _lastR;
             private float    _lastOriginalFinalDriveRatio;
             private float    _lastUpdatedFinalDriveRatio;
+            private float    _lastTDragFactor;
             private GUIStyle _overlayStyle;
 
             private static readonly List<TorqueConverterSimulator> _instances
@@ -834,6 +835,7 @@ namespace MyMWCMod1
 
                 _lastNuRatio                = wIn / wOut;
                 _lastR                      = R;
+                _lastTDragFactor            = wRatio * wRatio * (1f - nu);
                 _lastTOut                   = tDrag * R;
                 _lastNetTorque              = (float)_fNetTorque.GetValue(_drivetrain);
                 _lastOriginalFinalDriveRatio = (float)_fFinalDriveRatio.GetValue(_drivetrain);
@@ -859,8 +861,9 @@ namespace MyMWCMod1
                     + "\nω_in/ω_out: "    + _lastNuRatio.ToString("F3", ic)
                     + "  R(ν): "          + _lastR.ToString("F3", ic)
                     + "\nfinalDriveRatio: " + _lastOriginalFinalDriveRatio.ToString("F4", ic)
-                    + "  → "              + _lastUpdatedFinalDriveRatio.ToString("F4", ic);
-                GUI.Label(new Rect(10, 10, 500, 80), text, _overlayStyle);
+                    + "  → "              + _lastUpdatedFinalDriveRatio.ToString("F4", ic)
+                    + "\n(ω_in/ω_stall)²×(1−ν): " + _lastTDragFactor.ToString("F4", ic);
+                GUI.Label(new Rect(10, 10, 500, 100), text, _overlayStyle);
             }
         }
 
