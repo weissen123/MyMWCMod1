@@ -68,7 +68,7 @@ MyMWCMod1/
 | `GameObjectCsvDumper` | Recursively walks a GameObject hierarchy and writes all PlayMaker FSM variables to a CSV. `Dump(rootName)` is the single public entry point. |
 | `DrivetrainCsvDumper` | Finds all `Drivetrain` components under a root GameObject via `GetComponentsInChildren` and writes their public instance fields to a CSV via reflection. `Dump(rootName)` is the single public entry point. |
 | `DrivetrainStatisticsCollector` | Per-tick Drivetrain field recorder. Toggled by a configurable hotkey (`Input.GetKeyDown`); shows a top-center overlay while active; writes a timestamped CSV on stop. Fields resolved at load time via reflection. Owns its static `_instances` list; `LoadFromXml` constructs from `<Statistics>` inside `<Drivetrain>`; `UpdateAll`/`CollectAll`/`DrawAll` are the tick-dispatch entry points. |
-| `TorqueConverterSimulator` | Per-tick torque converter physics. Each tick reads `engineAngularVelo`, `differentialSpeed`, `finalDriveRatio`, `torque`, `frictionTorque`, `gear` via reflection; computes ν, T_drag, R(ν); writes back `frictionTorque` and `finalDriveRatio`. Skips ticks where ω_in ≤ 0 or gear is not in the ratio table. Owns `_instances`; `LoadFromXml` constructs from `<TorqueConverter>` inside `<Drivetrain>`; `ApplyAll` is the tick entry point. |
+| `TorqueConverterSimulator` | Per-tick torque converter physics. Each tick reads `engineAngularVelo`, `differentialSpeed`, `gear`, `netTorque` via reflection; computes ν, T_drag, R(ν), T_out; caches results for overlay display. Skips ticks where ω_in ≤ 0 or gear is not in the ratio table. Owns `_instances`; `LoadFromXml` constructs from `<TorqueConverter>` inside `<Drivetrain>`; `ApplyAll`/`DrawAll` are the tick-dispatch entry points. |
 
 ### XML Configuration (`Mods/MyMWCMod1_monitors.xml`)
 
@@ -145,7 +145,7 @@ Multiple `<Condition>` elements are AND-ed. If an object is not found at load ti
 - `wStall`: engine angular velocity (rad/s) at stall — 209 ≈ 2000 RPM.
 - `rStall`: torque ratio at stall (T_out / T_drag when ν = 0).
 - `<GearRatio gear="N" ratio="V">`: fixed drivetrain ratio for gear N. Active gears only; other gears skip the simulation tick.
-- Per tick: reads `engineAngularVelo`, `differentialSpeed`, `finalDriveRatio`, `torque`, `frictionTorque`, `gear`; writes `frictionTorque` and `finalDriveRatio`.
+- Per tick: reads `engineAngularVelo`, `differentialSpeed`, `gear`, `netTorque`; computes ν = (differentialSpeed × gearRatio) / engineAngularVelo, T_out, R(ν); displays comparison overlay (top-left) while engine is running and an active gear is engaged. Read-only — does not write Drivetrain fields.
 
 ### Wear Reduction Logic (`ComponentMonitor.ApplyReduction`)
 

@@ -714,6 +714,7 @@ namespace MyMWCMod1
 
         private class TorqueConverterSimulator
         {
+            private string                 _goName;
             private Drivetrain             _drivetrain;
             private float                  _tStall;
             private float                  _wStall;
@@ -722,10 +723,15 @@ namespace MyMWCMod1
 
             private System.Reflection.FieldInfo _fEngineAngularVelo;
             private System.Reflection.FieldInfo _fDifferentialSpeed;
-            private System.Reflection.FieldInfo _fFinalDriveRatio;
-            private System.Reflection.FieldInfo _fTorque;
-            private System.Reflection.FieldInfo _fFrictionTorque;
             private System.Reflection.FieldInfo _fGear;
+            private System.Reflection.FieldInfo _fNetTorque;
+
+            private bool     _hasData;
+            private float    _lastNetTorque;
+            private float    _lastTOut;
+            private float    _lastNuRatio;
+            private float    _lastR;
+            private GUIStyle _overlayStyle;
 
             private static readonly List<TorqueConverterSimulator> _instances
                 = new List<TorqueConverterSimulator>();
@@ -733,6 +739,7 @@ namespace MyMWCMod1
             public static void Reset()    { _instances.Clear(); }
             public static void Add(TorqueConverterSimulator s) { if (s != null) _instances.Add(s); }
             public static void ApplyAll() { foreach (TorqueConverterSimulator s in _instances) s.Apply(); }
+            public static void DrawAll()  { foreach (TorqueConverterSimulator s in _instances) s.DrawOverlay(); }
 
             public static TorqueConverterSimulator LoadFromXml(XmlElement el, Drivetrain drivetrain, string goName)
             {
@@ -776,13 +783,11 @@ namespace MyMWCMod1
 
                 System.Reflection.FieldInfo fEngineAngularVelo = dt.GetField("engineAngularVelo", bf);
                 System.Reflection.FieldInfo fDifferentialSpeed = dt.GetField("differentialSpeed", bf);
-                System.Reflection.FieldInfo fFinalDriveRatio   = dt.GetField("finalDriveRatio",   bf);
-                System.Reflection.FieldInfo fTorque            = dt.GetField("torque",            bf);
-                System.Reflection.FieldInfo fFrictionTorque    = dt.GetField("frictionTorque",    bf);
                 System.Reflection.FieldInfo fGear              = dt.GetField("gear",              bf);
+                System.Reflection.FieldInfo fNetTorque         = dt.GetField("netTorque",         bf);
 
-                if (fEngineAngularVelo == null || fDifferentialSpeed == null || fFinalDriveRatio == null ||
-                    fTorque == null            || fFrictionTorque    == null || fGear            == null)
+                if (fEngineAngularVelo == null || fDifferentialSpeed == null ||
+                    fGear             == null  || fNetTorque         == null)
                 {
                     ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' could not resolve one or more Drivetrain fields — skipped.");
                     return null;
@@ -790,22 +795,22 @@ namespace MyMWCMod1
 
                 return new TorqueConverterSimulator
                 {
-                    _drivetrain          = drivetrain,
-                    _tStall              = tStall,
-                    _wStall              = wStall,
-                    _rStall              = rStall,
-                    _gearRatios          = gearRatios,
-                    _fEngineAngularVelo  = fEngineAngularVelo,
-                    _fDifferentialSpeed  = fDifferentialSpeed,
-                    _fFinalDriveRatio    = fFinalDriveRatio,
-                    _fTorque             = fTorque,
-                    _fFrictionTorque     = fFrictionTorque,
-                    _fGear               = fGear,
+                    _goName             = goName,
+                    _drivetrain         = drivetrain,
+                    _tStall             = tStall,
+                    _wStall             = wStall,
+                    _rStall             = rStall,
+                    _gearRatios         = gearRatios,
+                    _fEngineAngularVelo = fEngineAngularVelo,
+                    _fDifferentialSpeed = fDifferentialSpeed,
+                    _fGear              = fGear,
+                    _fNetTorque         = fNetTorque,
                 };
             }
 
             private void Apply()
             {
+                _hasData = false;
                 float wIn = (float)_fEngineAngularVelo.GetValue(_drivetrain);
                 if (wIn <= 0f) return;
 
@@ -813,19 +818,36 @@ namespace MyMWCMod1
                 float baseRatio;
                 if (!_gearRatios.TryGetValue(gear, out baseRatio)) return;
 
-                float wOut  = (float)_fDifferentialSpeed.GetValue(_drivetrain)
-                            * (float)_fFinalDriveRatio.GetValue(_drivetrain);
-                float nu    = wOut / wIn;
+                float wOut   = (float)_fDifferentialSpeed.GetValue(_drivetrain) * baseRatio;
+                float nu     = wOut / wIn;
                 float wRatio = wIn / _wStall;
-                float tDrag = _tStall * wRatio * wRatio * (1f - nu);
-                float R     = nu < 0.9f
-                            ? _rStall - (_rStall - 1f) * (nu / 0.9f)
-                            : 1.0f;
-                float tOut  = tDrag * R;
+                float tDrag  = _tStall * wRatio * wRatio * (1f - nu);
+                float R      = nu < 0.9f
+                             ? _rStall - (_rStall - 1f) * (nu / 0.9f)
+                             : 1.0f;
 
-                float torque = (float)_fTorque.GetValue(_drivetrain);
-                _fFrictionTorque.SetValue(_drivetrain, torque - tOut);
-                _fFinalDriveRatio.SetValue(_drivetrain, baseRatio * R);
+                _lastNuRatio   = nu;
+                _lastR         = R;
+                _lastTOut      = tDrag * R;
+                _lastNetTorque = (float)_fNetTorque.GetValue(_drivetrain);
+                _hasData       = true;
+            }
+
+            private void DrawOverlay()
+            {
+                if (!_hasData) return;
+                if (_overlayStyle == null)
+                {
+                    _overlayStyle           = new GUIStyle(GUI.skin.label);
+                    _overlayStyle.alignment = TextAnchor.UpperLeft;
+                }
+                var ic = System.Globalization.CultureInfo.InvariantCulture;
+                string text = _goName + " TC:"
+                    + "\nnetTorque: " + _lastNetTorque.ToString("F2", ic)
+                    + "  T_out: "    + _lastTOut.ToString("F2", ic)
+                    + "\nω_out/ω_in: " + _lastNuRatio.ToString("F3", ic)
+                    + "  R(ν): "    + _lastR.ToString("F3", ic);
+                GUI.Label(new Rect(10, 10, 500, 60), text, _overlayStyle);
             }
         }
 
@@ -995,6 +1017,7 @@ namespace MyMWCMod1
         private void Mod_OnGUI()
         {
             DrivetrainStatisticsCollector.DrawAll();
+            TorqueConverterSimulator.DrawAll();
         }
 
         private void SetupMonitors()
