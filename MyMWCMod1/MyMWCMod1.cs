@@ -834,22 +834,27 @@ namespace MyMWCMod1
                 float baseRatio;
                 if (!_gearRatios.TryGetValue(gear, out baseRatio)) return;
 
-                float torque = (float)_fTorque.GetValue(_drivetrain);
-                float wOut   = (float)_fDifferentialSpeed.GetValue(_drivetrain) * baseRatio;
-                float nu     = wOut / wIn;
-                float wRatio = wIn / _wStall;
-                float tDrag  = torque * wRatio * wRatio * (1f - nu);
-                float R      = nu < 0.9f
-                             ? _rStall - (_rStall - 1f) * (nu / 0.9f)
-                             : 1.0f;
+                float torque        = (float)_fTorque.GetValue(_drivetrain);
+                float netTorque     = (float)_fNetTorque.GetValue(_drivetrain);
+                float frictionTorque = (float)_fFrictionTorque.GetValue(_drivetrain);
+                float wOut          = (float)_fDifferentialSpeed.GetValue(_drivetrain) * baseRatio;
+                float nu            = wOut / wIn;
+                float wRatio        = wIn / _wStall;
+                float tDrag         = torque * wRatio * wRatio * (1f - nu);
+                float R             = nu < 0.9f
+                                    ? _rStall - (_rStall - 1f) * (nu / 0.9f)
+                                    : 1.0f;
+                float tOut          = tDrag * R;
+
+                if (tOut > netTorque) { tOut = netTorque; tDrag = frictionTorque; }
 
                 _lastNuRatio                 = wIn / wOut;
                 _lastR                       = R;
                 _lastTDragFactor             = wRatio * wRatio * (1f - nu);
                 _lastTDrag                   = tDrag;
-                _lastTOut                    = tDrag * R;
-                _lastNetTorque               = (float)_fNetTorque.GetValue(_drivetrain);
-                _lastFrictionTorque          = (float)_fFrictionTorque.GetValue(_drivetrain);
+                _lastTOut                    = tOut;
+                _lastNetTorque               = netTorque;
+                _lastFrictionTorque          = frictionTorque;
                 _lastOriginalFinalDriveRatio = (float)_fFinalDriveRatio.GetValue(_drivetrain);
                 _lastUpdatedFinalDriveRatio  = baseRatio * R;
                 _hasData                     = true;
