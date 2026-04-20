@@ -840,7 +840,8 @@ namespace MyMWCMod1
                 _lastUpdatedFinalDriveRatio  = baseRatio * R;
                 _hasData                    = true;
 
-                _fFinalDriveRatio.SetValue(_drivetrain, _lastUpdatedFinalDriveRatio);
+                // disabled: writing finalDriveRatio locks ω_out/ω_in, making TC always applied
+                //_fFinalDriveRatio.SetValue(_drivetrain, _lastUpdatedFinalDriveRatio);
             }
 
             private void DrawOverlay()
