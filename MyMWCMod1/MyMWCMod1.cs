@@ -725,6 +725,7 @@ namespace MyMWCMod1
             private System.Reflection.FieldInfo _fDifferentialSpeed;
             private System.Reflection.FieldInfo _fGear;
             private System.Reflection.FieldInfo _fNetTorque;
+            private System.Reflection.FieldInfo _fFinalDriveRatio;
 
             private bool     _hasData;
             private float    _lastNetTorque;
@@ -785,9 +786,11 @@ namespace MyMWCMod1
                 System.Reflection.FieldInfo fDifferentialSpeed = dt.GetField("differentialSpeed", bf);
                 System.Reflection.FieldInfo fGear              = dt.GetField("gear",              bf);
                 System.Reflection.FieldInfo fNetTorque         = dt.GetField("netTorque",         bf);
+                System.Reflection.FieldInfo fFinalDriveRatio   = dt.GetField("finalDriveRatio",   bf);
 
                 if (fEngineAngularVelo == null || fDifferentialSpeed == null ||
-                    fGear             == null  || fNetTorque         == null)
+                    fGear             == null  || fNetTorque         == null  ||
+                    fFinalDriveRatio  == null)
                 {
                     ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' could not resolve one or more Drivetrain fields — skipped.");
                     return null;
@@ -805,6 +808,7 @@ namespace MyMWCMod1
                     _fDifferentialSpeed = fDifferentialSpeed,
                     _fGear              = fGear,
                     _fNetTorque         = fNetTorque,
+                    _fFinalDriveRatio   = fFinalDriveRatio,
                 };
             }
 
@@ -831,6 +835,8 @@ namespace MyMWCMod1
                 _lastTOut      = tDrag * R;
                 _lastNetTorque = (float)_fNetTorque.GetValue(_drivetrain);
                 _hasData       = true;
+
+                _fFinalDriveRatio.SetValue(_drivetrain, baseRatio * R);
             }
 
             private void DrawOverlay()
