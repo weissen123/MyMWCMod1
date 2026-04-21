@@ -850,20 +850,7 @@ namespace MyMWCMod1
                 _lastNetTorque               = netTorque;
                 _lastFrictionTorque          = frictionTorque;
 
-                const float minNu = 0.01f;
-                if (nu >= minNu)
-                {
-                    float newFinalDriveRatio = baseRatio / nu;
-                    float newNetTorque       = tOut * nu;
-                    _fFinalDriveRatio.SetValue(_drivetrain, newFinalDriveRatio);
-                    _fNetTorque.SetValue(_drivetrain,       newNetTorque);
-                    _fFrictionTorque.SetValue(_drivetrain,  torque - newNetTorque);
-                    _lastUpdatedFinalDriveRatio = newFinalDriveRatio;
-                }
-                else
-                {
-                    _lastUpdatedFinalDriveRatio = _lastOriginalFinalDriveRatio;
-                }
+                _lastUpdatedFinalDriveRatio = nu > 0f ? baseRatio / nu : _lastOriginalFinalDriveRatio;
 
                 _lastNuRatio     = wIn / wOut;
                 _lastR           = R;
