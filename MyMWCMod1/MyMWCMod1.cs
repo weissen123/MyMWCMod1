@@ -837,7 +837,7 @@ namespace MyMWCMod1
                 float torque        = (float)_fTorque.GetValue(_drivetrain);
                 float netTorque     = (float)_fNetTorque.GetValue(_drivetrain);
                 float frictionTorque = (float)_fFrictionTorque.GetValue(_drivetrain);
-                float wOut          = (float)_fDifferentialSpeed.GetValue(_drivetrain) * baseRatio;
+                float wOut          = Math.Max(0.01f, (float)_fDifferentialSpeed.GetValue(_drivetrain) * baseRatio);
                 float nu            = wOut / wIn;
                 float wRatio        = wIn / _wStall;
                 float tDrag         = torque * wRatio * wRatio * (1f - nu);
