@@ -846,25 +846,31 @@ namespace MyMWCMod1
                                     : 1.0f;
                 float tOut          = tDrag * R;
 
-                if (tOut > netTorque)
-                {
-                    _fNetTorque.SetValue(_drivetrain, tOut);
-                    _fFrictionTorque.SetValue(_drivetrain, torque - tOut);
-                }
-
-                _lastNuRatio                 = wIn / wOut;
-                _lastR                       = R;
-                _lastTDragFactor             = wRatio * wRatio * (1f - nu);
-                _lastTDrag                   = tDrag;
-                _lastTOut                    = tOut;
+                _lastOriginalFinalDriveRatio = (float)_fFinalDriveRatio.GetValue(_drivetrain);
                 _lastNetTorque               = netTorque;
                 _lastFrictionTorque          = frictionTorque;
-                _lastOriginalFinalDriveRatio = (float)_fFinalDriveRatio.GetValue(_drivetrain);
-                _lastUpdatedFinalDriveRatio  = baseRatio * R;
-                _hasData                     = true;
 
-                // disabled: writing finalDriveRatio locks ω_out/ω_in, making TCC always applied
-                //_fFinalDriveRatio.SetValue(_drivetrain, _lastUpdatedFinalDriveRatio);
+                const float minNu = 0.01f;
+                if (nu >= minNu)
+                {
+                    float newFinalDriveRatio = baseRatio / nu;
+                    float newNetTorque       = tOut * nu;
+                    _fFinalDriveRatio.SetValue(_drivetrain, newFinalDriveRatio);
+                    _fNetTorque.SetValue(_drivetrain,       newNetTorque);
+                    _fFrictionTorque.SetValue(_drivetrain,  torque - newNetTorque);
+                    _lastUpdatedFinalDriveRatio = newFinalDriveRatio;
+                }
+                else
+                {
+                    _lastUpdatedFinalDriveRatio = _lastOriginalFinalDriveRatio;
+                }
+
+                _lastNuRatio     = wIn / wOut;
+                _lastR           = R;
+                _lastTDragFactor = wRatio * wRatio * (1f - nu);
+                _lastTDrag       = tDrag;
+                _lastTOut        = tOut;
+                _hasData         = true;
             }
 
             private void DrawOverlay()
