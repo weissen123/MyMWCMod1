@@ -49,7 +49,7 @@ MyMWCMod1/
 - **Entry point:** `MyMWCMod1.cs` — inherits from `MSCLoader.Mod`
 - **Lifecycle hooks registered in `ModSetup()`:**
   - `OnLoad` → `Mod_OnLoad`: calls `SetupMonitors()` then `PivotResetConfig.Init(xmlPath)` — resolves game objects and FSM references
-  - `Update` → `Mod_Update`: calls `DrivetrainStatisticsCollector.UpdateAll()`, then dispatches keybind presses to `PivotResetConfig.ResetCurrentPivot()` or `PivotResetConfig.SaveCurrentPivot()`
+  - `Update` → `Mod_Update`: calls `TorqueConverterSimulator.UpdateAll()` and `DrivetrainStatisticsCollector.UpdateAll()`, then dispatches keybind presses to `PivotResetConfig.ResetCurrentPivot()` or `PivotResetConfig.SaveCurrentPivot()`
   - `FixedUpdate` → `Mod_FixedUpdate`: calls `ComponentMonitor.ApplyAll()`, `DrivetrainMonitor.ApplyAll()`, and `DrivetrainStatisticsCollector.CollectAll()` every physics tick
   - `ModSettings` → `Mod_Settings`: calls `DrivetrainMonitor.RegisterSettings(XmlPath)` to register in-game settings UI from XML, registers the `Reset Player Pivot` and `Save Player Pivot` keybinds, and adds CSV dump buttons
   - `OnGUI` → `Mod_OnGUI`: calls `DrivetrainStatisticsCollector.DrawAll()` to render the collection overlay
@@ -68,7 +68,7 @@ MyMWCMod1/
 | `GameObjectCsvDumper` | Recursively walks a GameObject hierarchy and writes all PlayMaker FSM variables to a CSV. `Dump(rootName)` is the single public entry point. |
 | `DrivetrainCsvDumper` | Finds all `Drivetrain` components under a root GameObject via `GetComponentsInChildren` and writes their public instance fields to a CSV via reflection. `Dump(rootName)` is the single public entry point. |
 | `DrivetrainStatisticsCollector` | Per-tick Drivetrain field recorder. Toggled by a configurable hotkey (`Input.GetKeyDown`); shows a top-center overlay while active; writes a timestamped CSV on stop. Fields resolved at load time via reflection. Owns its static `_instances` list; `LoadFromXml` constructs from `<Statistics>` inside `<Drivetrain>`; `UpdateAll`/`CollectAll`/`DrawAll` are the tick-dispatch entry points. |
-| `TorqueConverterSimulator` | Per-tick torque converter physics with dynamic integration. Maintains own `_omegaIn`/`_omegaOut` state; each tick integrates `ω_in += (torque − T_drag) / I_engine × dt` and `ω_out += T_out / I_eff × dt`, then writes `engineAngularVelo`, `differentialSpeed`, `finalDriveRatio`, `netTorque`, `frictionTorque` back to the game Drivetrain. Seeds from game fields on first tick or gear change; skips when engine off or gear not in ratio table. Owns `_instances`; `LoadFromXml` constructs from `<TorqueConverter>` inside `<Drivetrain>`; `ApplyAll`/`DrawAll` are the tick-dispatch entry points. |
+| `TorqueConverterSimulator` | Per-tick torque converter physics with dynamic integration. Maintains own `_omegaIn`/`_omegaOut` state; each tick integrates `ω_in += (torque − T_drag) / I_engine × dt` and `ω_out += T_out / I_eff × dt`, then writes `engineAngularVelo`, `differentialSpeed`, `finalDriveRatio`, `netTorque`, `frictionTorque` back to the game Drivetrain. Seeds from game fields on first tick or gear change; skips when engine off or gear not in ratio table. Owns `_instances`; `LoadFromXml` constructs from `<TorqueConverter>` inside `<Drivetrain>`; `UpdateAll`/`ApplyAll`/`DrawAll` are the tick-dispatch entry points. |
 
 ### XML Configuration (`Mods/MyMWCMod1_monitors.xml`)
 
@@ -135,7 +135,7 @@ Multiple `<Condition>` elements are AND-ed. If an object is not found at load ti
 **Torque converter** (`<TorqueConverter>` child inside `<Drivetrain>`, alongside `<Setting>` and `<Statistics>`):
 ```xml
 <TorqueConverter mode="on" RPMStall="2000" rStall="2"
-                 vehicleMass="1100" wheelRadius="0.3">
+                 vehicleMass="1100" wheelRadius="0.3" KeyCode="KeypadEnter">
   <GearRatio gear="2" ratio="10.6116" />
   <GearRatio gear="3" ratio="6.438" />
   <GearRatio gear="4" ratio="4.44" />
@@ -147,6 +147,7 @@ Multiple `<Condition>` elements are AND-ed. If an object is not found at load ti
 - `rStall`: torque ratio at stall (T_out / T_drag when ν = 0).
 - `vehicleMass`: vehicle mass used to compute effective output inertia I_eff = m × r_wheel² / gearRatio² (kg).
 - `wheelRadius`: wheel radius (m).
+- `KeyCode` (optional): Unity `KeyCode` enum name (case-insensitive) — press at runtime to toggle between `on` and `display` modes. Omit to disable toggle. Has no effect when initial `mode` is `off` (instance not loaded).
 - `<GearRatio gear="N" ratio="V">`: fixed drivetrain ratio for gear N. Active gears only; other gears skip the simulation tick.
 - Per tick: integrates `ω_in += (torque − T_drag) / I_engine × dt` and `ω_out += T_out / I_eff × dt`; seeds both from game fields on first tick or after gear change; writes `engineAngularVelo`, `differentialSpeed`, `finalDriveRatio`, `netTorque`, `frictionTorque` back each tick. Skips when engine off or not in an active gear.
 

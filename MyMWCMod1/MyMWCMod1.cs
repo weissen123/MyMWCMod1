@@ -732,7 +732,8 @@ namespace MyMWCMod1
             private float _vehicleMass;
             private float _wheelRadius;
 
-            private bool  _writeBack;
+            private bool    _writeBack;
+            private KeyCode _keyCode;
             private bool  _initialized;
             private int   _lastGear;
             private float _omegaIn;
@@ -754,10 +755,19 @@ namespace MyMWCMod1
             private static readonly List<TorqueConverterSimulator> _instances
                 = new List<TorqueConverterSimulator>();
 
-            public static void Reset()    { _instances.Clear(); }
+            public static void Reset()     { _instances.Clear(); }
             public static void Add(TorqueConverterSimulator s) { if (s != null) _instances.Add(s); }
-            public static void ApplyAll() { foreach (TorqueConverterSimulator s in _instances) s.Apply(); }
-            public static void DrawAll()  { foreach (TorqueConverterSimulator s in _instances) s.DrawOverlay(); }
+            public static void UpdateAll() { foreach (TorqueConverterSimulator s in _instances) s.CheckToggle(); }
+            public static void ApplyAll()  { foreach (TorqueConverterSimulator s in _instances) s.Apply(); }
+            public static void DrawAll()   { foreach (TorqueConverterSimulator s in _instances) s.DrawOverlay(); }
+
+            private void CheckToggle()
+            {
+                if (_keyCode == KeyCode.None) return;
+                if (!Input.GetKeyDown(_keyCode)) return;
+                _writeBack = !_writeBack;
+                ModConsole.Log("MyMWCMod1: TC mode for " + _goName + " → " + (_writeBack ? "on" : "display"));
+            }
 
             public static TorqueConverterSimulator LoadFromXml(XmlElement el, Drivetrain drivetrain, string goName)
             {
@@ -767,6 +777,14 @@ namespace MyMWCMod1
                 string mode = el.GetAttribute("mode");
                 if (mode == "off") return null;
                 bool writeBack = mode == "on";
+
+                KeyCode keyCode = KeyCode.None;
+                string keyCodeStr = el.GetAttribute("KeyCode");
+                if (!string.IsNullOrEmpty(keyCodeStr))
+                {
+                    try { keyCode = (KeyCode)System.Enum.Parse(typeof(KeyCode), keyCodeStr, true); }
+                    catch { ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' invalid KeyCode '" + keyCodeStr + "' — toggle disabled."); }
+                }
 
                 float rpmStall, rStall;
                 if (!float.TryParse(el.GetAttribute("RPMStall"), ns, ic, out rpmStall) ||
@@ -834,6 +852,7 @@ namespace MyMWCMod1
                     _goName             = goName,
                     _drivetrain         = drivetrain,
                     _writeBack          = writeBack,
+                    _keyCode            = keyCode,
                     _wStall             = wStall,
                     _rStall             = rStall,
                     _vehicleMass        = vehicleMass,
@@ -1098,6 +1117,7 @@ namespace MyMWCMod1
 
         private void Mod_Update()
         {
+            TorqueConverterSimulator.UpdateAll();
             DrivetrainStatisticsCollector.UpdateAll();
             if (_pivotSaveKey.GetKeybindDown())  { PivotResetConfig.SaveCurrentPivot();  return; }
             if (_pivotResetKey.GetKeybindDown()) { PivotResetConfig.ResetCurrentPivot(); return; }
@@ -1211,7 +1231,7 @@ namespace MyMWCMod1
         <Condition fsmName=""Cylinders"" fsmBool=""CombustionOK"" path=""CORRIS/Simulation/Engine/Combustion"" />
         <Condition path=""CORRIS"" CompName=""Drivetrain"" varFloat=""rpm"" minFloat=""400"" />
       </Setting>
-      <Statistics fileName=""MWC_Drivetrain_Stat_CORRIS"" KeyCode=""KeypadEnter"">
+      <Statistics fileName=""MWC_Drivetrain_Stat_CORRIS"" KeyCode=""KeypadDivide"">
         <Statistic field=""gear"" />
         <Statistic field=""throttle"" />
         <Statistic field=""rpm""                live=""X"" />
@@ -1228,7 +1248,7 @@ namespace MyMWCMod1
         <Statistic field=""currentPower"" />
         <Statistic field=""powerMultiplier"" />
       </Statistics>
-      <TorqueConverter mode=""on"" RPMStall=""2000"" rStall=""2"" vehicleMass=""1100"" wheelRadius=""0.3"">
+      <TorqueConverter mode=""on"" RPMStall=""2000"" rStall=""2"" vehicleMass=""1100"" wheelRadius=""0.3"" KeyCode=""KeypadEnter"">
         <GearRatio gear=""2"" ratio=""10.6116"" />
         <GearRatio gear=""3"" ratio=""6.438"" />
         <GearRatio gear=""4"" ratio=""4.44"" />
