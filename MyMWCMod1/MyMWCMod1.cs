@@ -889,6 +889,7 @@ namespace MyMWCMod1
                 float wRatio = _omegaIn / _wStall;
                 float tDrag  = torque * wRatio * wRatio * (1f - nu);
                 float R      = nu < 0.9f ? _rStall - (_rStall - 1f) * (nu / 0.9f) : 1.0f;
+                tcActive     = tcActive && R >= 1.05f;
                 float tOut   = tDrag * R;
 
                 if (_writeBack && tcActive)
