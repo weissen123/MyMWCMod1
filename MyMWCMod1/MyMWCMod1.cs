@@ -865,7 +865,6 @@ namespace MyMWCMod1
 
                 float diffSpeed = (float)_fDifferentialSpeed.GetValue(_drivetrain);
                 float throttle  = (float)_fThrottle.GetValue(_drivetrain);
-                bool  tcActive  = throttle >= 0.15f && (throttle - _lastThrottle) > -0.05f;
                 if (!_initialized)
                 {
                     _omegaOut     = Math.Max(0.01f, diffSpeed * baseRatio);
@@ -885,12 +884,12 @@ namespace MyMWCMod1
                 float frictionTorque = (float)_fFrictionTorque.GetValue(_drivetrain);
                 float origFdr        = (float)_fFinalDriveRatio.GetValue(_drivetrain);
 
-                float nu     = Math.Max(0.01f, _omegaOut) / Math.Max(0.01f, _omegaIn);
-                float wRatio = _omegaIn / _wStall;
-                float tDrag  = torque * wRatio * wRatio * (1f - nu);
-                float R      = nu < 0.9f ? _rStall - (_rStall - 1f) * (nu / 0.9f) : 1.0f;
-                tcActive     = tcActive && R >= 1.05f;
-                float tOut   = tDrag * R;
+                float nu       = Math.Max(0.01f, _omegaOut) / Math.Max(0.01f, _omegaIn);
+                float wRatio   = _omegaIn / _wStall;
+                float tDrag    = torque * wRatio * wRatio * (1f - nu);
+                float R        = nu < 0.9f ? _rStall - (_rStall - 1f) * (nu / 0.9f) : 1.0f;
+                float tOut     = tDrag * R;
+                bool  tcActive = throttle >= 0.15f && (throttle - _lastThrottle) > -0.05f && R >= 1.05f;
 
                 if (_writeBack && tcActive)
                 {
