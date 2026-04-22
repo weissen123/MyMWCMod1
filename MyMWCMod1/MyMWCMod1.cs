@@ -733,6 +733,7 @@ namespace MyMWCMod1
             private float _vehicleMass;
             private float _wheelRadius;
 
+            private bool  _writeBack;
             private bool  _initialized;
             private int   _lastGear;
             private float _omegaIn;
@@ -762,6 +763,10 @@ namespace MyMWCMod1
             {
                 var ns = System.Globalization.NumberStyles.Float;
                 var ic = System.Globalization.CultureInfo.InvariantCulture;
+
+                string mode = el.GetAttribute("mode");
+                if (mode == "off") return null;
+                bool writeBack = mode != "display";
 
                 float tStall, wStall, rStall;
                 if (!float.TryParse(el.GetAttribute("tStall"), ns, ic, out tStall) ||
@@ -828,6 +833,7 @@ namespace MyMWCMod1
                 {
                     _goName             = goName,
                     _drivetrain         = drivetrain,
+                    _writeBack          = writeBack,
                     _tStall             = tStall,
                     _wStall             = wStall,
                     _rStall             = rStall,
@@ -890,11 +896,14 @@ namespace MyMWCMod1
                 _omegaOut  = Math.Max(0.01f, _omegaOut);
 
                 float nuNew = _omegaOut / Math.Max(0.01f, _omegaIn);
-                _fEngineAngularVelo.SetValue(_drivetrain, _omegaIn);
-                _fDifferentialSpeed.SetValue(_drivetrain, _omegaOut / baseRatio);
-                _fFinalDriveRatio.SetValue(  _drivetrain, baseRatio / nuNew);
-                _fNetTorque.SetValue(        _drivetrain, tOut * nuNew);
-                _fFrictionTorque.SetValue(   _drivetrain, torque - tOut * nuNew);
+                if (_writeBack)
+                {
+                    _fEngineAngularVelo.SetValue(_drivetrain, _omegaIn);
+                    _fDifferentialSpeed.SetValue(_drivetrain, _omegaOut / baseRatio);
+                    _fFinalDriveRatio.SetValue(  _drivetrain, baseRatio / nuNew);
+                    _fNetTorque.SetValue(        _drivetrain, tOut * nuNew);
+                    _fFrictionTorque.SetValue(   _drivetrain, torque - tOut * nuNew);
+                }
 
                 _lastOriginalFinalDriveRatio = origFdr;
                 _lastUpdatedFinalDriveRatio  = baseRatio / nuNew;
@@ -1211,7 +1220,7 @@ namespace MyMWCMod1
         <Statistic field=""currentPower"" />
         <Statistic field=""powerMultiplier"" />
       </Statistics>
-      <TorqueConverter tStall=""145"" wStall=""209"" rStall=""2"" iEngine=""0.5"" vehicleMass=""1100"" wheelRadius=""0.3"">
+      <TorqueConverter mode=""on"" tStall=""145"" wStall=""209"" rStall=""2"" iEngine=""0.5"" vehicleMass=""1100"" wheelRadius=""0.3"">
         <GearRatio gear=""2"" ratio=""10.6116"" />
         <GearRatio gear=""3"" ratio=""6.438"" />
         <GearRatio gear=""4"" ratio=""4.44"" />
