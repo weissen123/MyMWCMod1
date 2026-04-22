@@ -729,6 +729,15 @@ namespace MyMWCMod1
             private System.Reflection.FieldInfo _fTorque;
             private System.Reflection.FieldInfo _fFrictionTorque;
 
+            private float _iEngine;
+            private float _vehicleMass;
+            private float _wheelRadius;
+
+            private bool  _initialized;
+            private int   _lastGear;
+            private float _omegaIn;
+            private float _omegaOut;
+
             private bool     _hasData;
             private float    _lastNetTorque;
             private float    _lastTOut;
@@ -760,6 +769,15 @@ namespace MyMWCMod1
                     !float.TryParse(el.GetAttribute("rStall"), ns, ic, out rStall))
                 {
                     ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' missing or invalid tStall/wStall/rStall — skipped.");
+                    return null;
+                }
+
+                float iEngine, vehicleMass, wheelRadius;
+                if (!float.TryParse(el.GetAttribute("iEngine"),     ns, ic, out iEngine)     ||
+                    !float.TryParse(el.GetAttribute("vehicleMass"), ns, ic, out vehicleMass) ||
+                    !float.TryParse(el.GetAttribute("wheelRadius"), ns, ic, out wheelRadius))
+                {
+                    ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' missing or invalid iEngine/vehicleMass/wheelRadius — skipped.");
                     return null;
                 }
 
@@ -813,6 +831,9 @@ namespace MyMWCMod1
                     _tStall             = tStall,
                     _wStall             = wStall,
                     _rStall             = rStall,
+                    _iEngine            = iEngine,
+                    _vehicleMass        = vehicleMass,
+                    _wheelRadius        = wheelRadius,
                     _gearRatios         = gearRatios,
                     _fEngineAngularVelo = fEngineAngularVelo,
                     _fDifferentialSpeed = fDifferentialSpeed,
@@ -827,37 +848,64 @@ namespace MyMWCMod1
             private void Apply()
             {
                 _hasData = false;
-                float wIn = (float)_fEngineAngularVelo.GetValue(_drivetrain);
-                if (wIn <= 0f) return;
 
-                int   gear      = (int)_fGear.GetValue(_drivetrain);
+                int   gear;
                 float baseRatio;
-                if (!_gearRatios.TryGetValue(gear, out baseRatio)) return;
+                gear = (int)_fGear.GetValue(_drivetrain);
+                if (!_gearRatios.TryGetValue(gear, out baseRatio)) { _initialized = false; return; }
 
-                float torque        = (float)_fTorque.GetValue(_drivetrain);
-                float netTorque     = (float)_fNetTorque.GetValue(_drivetrain);
+                float wInGame = (float)_fEngineAngularVelo.GetValue(_drivetrain);
+                if (wInGame <= 0f) { _initialized = false; return; }
+
+                float diffSpeed = (float)_fDifferentialSpeed.GetValue(_drivetrain);
+                if (!_initialized)
+                {
+                    _omegaIn     = wInGame;
+                    _omegaOut    = Math.Max(0.01f, diffSpeed * baseRatio);
+                    _lastGear    = gear;
+                    _initialized = true;
+                }
+                else if (gear != _lastGear)
+                {
+                    _omegaOut = Math.Max(0.01f, diffSpeed * baseRatio);
+                    _lastGear = gear;
+                }
+
+                float torque         = (float)_fTorque.GetValue(_drivetrain);
+                float netTorque      = (float)_fNetTorque.GetValue(_drivetrain);
                 float frictionTorque = (float)_fFrictionTorque.GetValue(_drivetrain);
-                float wOut          = Math.Max(0.01f, (float)_fDifferentialSpeed.GetValue(_drivetrain) * baseRatio);
-                float nu            = wOut / wIn;
-                float wRatio        = wIn / _wStall;
-                float tDrag         = torque * wRatio * wRatio * (1f - nu);
-                float R             = nu < 0.9f
-                                    ? _rStall - (_rStall - 1f) * (nu / 0.9f)
-                                    : 1.0f;
-                float tOut          = tDrag * R;
+                float origFdr        = (float)_fFinalDriveRatio.GetValue(_drivetrain);
 
-                _lastOriginalFinalDriveRatio = (float)_fFinalDriveRatio.GetValue(_drivetrain);
+                float nu     = Math.Max(0.01f, _omegaOut) / Math.Max(0.01f, _omegaIn);
+                float wRatio = _omegaIn / _wStall;
+                float tDrag  = torque * wRatio * wRatio * (1f - nu);
+                float R      = nu < 0.9f ? _rStall - (_rStall - 1f) * (nu / 0.9f) : 1.0f;
+                float tOut   = tDrag * R;
+
+                float iEff = _vehicleMass * _wheelRadius * _wheelRadius / (baseRatio * baseRatio);
+                float dt   = UnityEngine.Time.fixedDeltaTime;
+                _omegaIn  += (torque - tDrag) / _iEngine * dt;
+                _omegaOut += tOut / iEff * dt;
+                _omegaIn   = Math.Max(0f,    _omegaIn);
+                _omegaOut  = Math.Max(0.01f, _omegaOut);
+
+                float nuNew = _omegaOut / Math.Max(0.01f, _omegaIn);
+                _fEngineAngularVelo.SetValue(_drivetrain, _omegaIn);
+                _fDifferentialSpeed.SetValue(_drivetrain, _omegaOut / baseRatio);
+                _fFinalDriveRatio.SetValue(  _drivetrain, baseRatio / nuNew);
+                _fNetTorque.SetValue(        _drivetrain, tOut * nuNew);
+                _fFrictionTorque.SetValue(   _drivetrain, torque - tOut * nuNew);
+
+                _lastOriginalFinalDriveRatio = origFdr;
+                _lastUpdatedFinalDriveRatio  = baseRatio / nuNew;
                 _lastNetTorque               = netTorque;
                 _lastFrictionTorque          = frictionTorque;
-
-                _lastUpdatedFinalDriveRatio = nu > 0f ? baseRatio / nu : _lastOriginalFinalDriveRatio;
-
-                _lastNuRatio     = wIn / wOut;
-                _lastR           = R;
-                _lastTDragFactor = wRatio * wRatio * (1f - nu);
-                _lastTDrag       = tDrag;
-                _lastTOut        = tOut;
-                _hasData         = true;
+                _lastNuRatio                 = _omegaIn / _omegaOut;
+                _lastR                       = R;
+                _lastTDragFactor             = wRatio * wRatio * (1f - nu);
+                _lastTDrag                   = tDrag;
+                _lastTOut                    = tOut;
+                _hasData                     = true;
             }
 
             private void DrawOverlay()
@@ -1163,7 +1211,7 @@ namespace MyMWCMod1
         <Statistic field=""currentPower"" />
         <Statistic field=""powerMultiplier"" />
       </Statistics>
-      <TorqueConverter tStall=""145"" wStall=""209"" rStall=""2"">
+      <TorqueConverter tStall=""145"" wStall=""209"" rStall=""2"" iEngine=""0.5"" vehicleMass=""1100"" wheelRadius=""0.3"">
         <GearRatio gear=""2"" ratio=""10.6116"" />
         <GearRatio gear=""3"" ratio=""6.438"" />
         <GearRatio gear=""4"" ratio=""4.44"" />
