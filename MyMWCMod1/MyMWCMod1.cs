@@ -888,10 +888,17 @@ namespace MyMWCMod1
                 float R      = nu < 0.9f ? _rStall - (_rStall - 1f) * (nu / 0.9f) : 1.0f;
                 float tOut   = tDrag * R;
 
-                float iEff = _vehicleMass * _wheelRadius * _wheelRadius / (baseRatio * baseRatio);
-                float dt   = UnityEngine.Time.fixedDeltaTime;
-                _omegaOut += tOut / iEff * dt;
-                _omegaOut  = Math.Max(0.01f, _omegaOut);
+                if (_writeBack)
+                {
+                    float iEff = _vehicleMass * _wheelRadius * _wheelRadius / (baseRatio * baseRatio);
+                    float dt   = UnityEngine.Time.fixedDeltaTime;
+                    _omegaOut += tOut / iEff * dt;
+                    _omegaOut  = Math.Max(0.01f, _omegaOut);
+                }
+                else
+                {
+                    _omegaOut = Math.Max(0.01f, diffSpeed * baseRatio);
+                }
 
                 float nuNew = _omegaOut / Math.Max(0.01f, _omegaIn);
                 if (_writeBack)
