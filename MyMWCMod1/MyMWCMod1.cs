@@ -766,7 +766,7 @@ namespace MyMWCMod1
 
                 string mode = el.GetAttribute("mode");
                 if (mode == "off") return null;
-                bool writeBack = mode != "display";
+                bool writeBack = mode == "on";
 
                 float tStall, wStall, rStall;
                 if (!float.TryParse(el.GetAttribute("tStall"), ns, ic, out tStall) ||
