@@ -924,7 +924,7 @@ namespace MyMWCMod1
                     _overlayStyle.alignment = TextAnchor.UpperLeft;
                 }
                 var ic = System.Globalization.CultureInfo.InvariantCulture;
-                string text = _goName + " TC:"
+                string text = _goName + " TC gear " + _lastGear + ":"
                     + "\nnetTorque: "     + _lastNetTorque.ToString("F2", ic)
                     + "  T_out: "         + _lastTOut.ToString("F2", ic)
                     + "\nfrictionTorque: " + _lastFrictionTorque.ToString("F2", ic)
