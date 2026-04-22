@@ -948,7 +948,8 @@ namespace MyMWCMod1
                     + "  R(ν): "          + _lastR.ToString("F3", ic)
                     + "\nfinalDriveRatio: " + _lastOriginalFinalDriveRatio.ToString("F4", ic)
                     + "  → "              + _lastUpdatedFinalDriveRatio.ToString("F4", ic)
-                    + "\n(ω_in/ω_stall)²×(1−ν): " + _lastTDragFactor.ToString("F4", ic);
+                    + "\n(ω_in/ω_stall)²×(1−ν): " + _lastTDragFactor.ToString("F4", ic)
+                    + "  throttle: "               + _lastThrottle.ToString("F3", ic);
                 GUI.Label(new Rect(10, 10, 500, 120), text, _overlayStyle);
             }
         }
