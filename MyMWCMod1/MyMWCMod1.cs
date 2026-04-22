@@ -862,11 +862,11 @@ namespace MyMWCMod1
 
                 float wInGame = (float)_fEngineAngularVelo.GetValue(_drivetrain);
                 if (wInGame <= 0f) { _initialized = false; return; }
+                _omegaIn = wInGame;
 
                 float diffSpeed = (float)_fDifferentialSpeed.GetValue(_drivetrain);
                 if (!_initialized)
                 {
-                    _omegaIn     = wInGame;
                     _omegaOut    = Math.Max(0.01f, diffSpeed * baseRatio);
                     _lastGear    = gear;
                     _initialized = true;
@@ -890,9 +890,7 @@ namespace MyMWCMod1
 
                 float iEff = _vehicleMass * _wheelRadius * _wheelRadius / (baseRatio * baseRatio);
                 float dt   = UnityEngine.Time.fixedDeltaTime;
-                _omegaIn  += (torque - tDrag) / _iEngine * dt;
                 _omegaOut += tOut / iEff * dt;
-                _omegaIn   = Math.Max(0f,    _omegaIn);
                 _omegaOut  = Math.Max(0.01f, _omegaOut);
 
                 float nuNew = _omegaOut / Math.Max(0.01f, _omegaIn);
