@@ -768,13 +768,14 @@ namespace MyMWCMod1
                 if (mode == "off") return null;
                 bool writeBack = mode == "on";
 
-                float wStall, rStall;
-                if (!float.TryParse(el.GetAttribute("wStall"), ns, ic, out wStall) ||
-                    !float.TryParse(el.GetAttribute("rStall"), ns, ic, out rStall))
+                float rpmStall, rStall;
+                if (!float.TryParse(el.GetAttribute("RPMStall"), ns, ic, out rpmStall) ||
+                    !float.TryParse(el.GetAttribute("rStall"),   ns, ic, out rStall))
                 {
-                    ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' missing or invalid wStall/rStall — skipped.");
+                    ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' missing or invalid RPMStall/rStall — skipped.");
                     return null;
                 }
+                float wStall = rpmStall * 2f * (float)Math.PI / 60f;
 
                 float vehicleMass, wheelRadius;
                 if (!float.TryParse(el.GetAttribute("vehicleMass"), ns, ic, out vehicleMass) ||
@@ -1227,7 +1228,7 @@ namespace MyMWCMod1
         <Statistic field=""currentPower"" />
         <Statistic field=""powerMultiplier"" />
       </Statistics>
-      <TorqueConverter mode=""on"" wStall=""209"" rStall=""2"" vehicleMass=""1100"" wheelRadius=""0.3"">
+      <TorqueConverter mode=""on"" RPMStall=""2000"" rStall=""2"" vehicleMass=""1100"" wheelRadius=""0.3"">
         <GearRatio gear=""2"" ratio=""10.6116"" />
         <GearRatio gear=""3"" ratio=""6.438"" />
         <GearRatio gear=""4"" ratio=""4.44"" />
