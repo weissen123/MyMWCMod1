@@ -728,6 +728,7 @@ namespace MyMWCMod1
             private System.Reflection.FieldInfo _fFinalDriveRatio;
             private System.Reflection.FieldInfo _fTorque;
             private System.Reflection.FieldInfo _fFrictionTorque;
+            private System.Reflection.FieldInfo _fThrottle;
 
             private float _iEngine;
             private float _vehicleMass;
@@ -738,6 +739,7 @@ namespace MyMWCMod1
             private int   _lastGear;
             private float _omegaIn;
             private float _omegaOut;
+            private float _lastThrottle;
 
             private bool     _hasData;
             private float    _lastNetTorque;
@@ -819,11 +821,12 @@ namespace MyMWCMod1
                 System.Reflection.FieldInfo fFinalDriveRatio   = dt.GetField("finalDriveRatio",   bf);
                 System.Reflection.FieldInfo fTorque            = dt.GetField("torque",            bf);
                 System.Reflection.FieldInfo fFrictionTorque    = dt.GetField("frictionTorque",    bf);
+                System.Reflection.FieldInfo fThrottle          = dt.GetField("throttle",          bf);
 
                 if (fEngineAngularVelo == null || fDifferentialSpeed == null ||
                     fGear             == null  || fNetTorque         == null  ||
                     fFinalDriveRatio  == null  || fTorque            == null  ||
-                    fFrictionTorque   == null)
+                    fFrictionTorque   == null  || fThrottle          == null)
                 {
                     ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' could not resolve one or more Drivetrain fields — skipped.");
                     return null;
@@ -848,6 +851,7 @@ namespace MyMWCMod1
                     _fFinalDriveRatio   = fFinalDriveRatio,
                     _fTorque            = fTorque,
                     _fFrictionTorque    = fFrictionTorque,
+                    _fThrottle          = fThrottle,
                 };
             }
 
@@ -865,17 +869,21 @@ namespace MyMWCMod1
                 _omegaIn = wInGame;
 
                 float diffSpeed = (float)_fDifferentialSpeed.GetValue(_drivetrain);
+                float throttle  = (float)_fThrottle.GetValue(_drivetrain);
+                bool  tcActive  = throttle >= 0.15f && (throttle - _lastThrottle) > -0.05f;
                 if (!_initialized)
                 {
-                    _omegaOut    = Math.Max(0.01f, diffSpeed * baseRatio);
-                    _lastGear    = gear;
-                    _initialized = true;
+                    _omegaOut     = Math.Max(0.01f, diffSpeed * baseRatio);
+                    _lastGear     = gear;
+                    _lastThrottle = throttle;
+                    _initialized  = true;
                 }
                 else if (gear != _lastGear)
                 {
                     _omegaOut = Math.Max(0.01f, diffSpeed * baseRatio);
                     _lastGear = gear;
                 }
+                _lastThrottle = throttle;
 
                 float torque         = (float)_fTorque.GetValue(_drivetrain);
                 float netTorque      = (float)_fNetTorque.GetValue(_drivetrain);
@@ -888,7 +896,7 @@ namespace MyMWCMod1
                 float R      = nu < 0.9f ? _rStall - (_rStall - 1f) * (nu / 0.9f) : 1.0f;
                 float tOut   = tDrag * R;
 
-                if (_writeBack)
+                if (_writeBack && tcActive)
                 {
                     float iEff = _vehicleMass * _wheelRadius * _wheelRadius / (baseRatio * baseRatio);
                     float dt   = UnityEngine.Time.fixedDeltaTime;
@@ -901,7 +909,7 @@ namespace MyMWCMod1
                 }
 
                 float nuNew = _omegaOut / Math.Max(0.01f, _omegaIn);
-                if (_writeBack)
+                if (_writeBack && tcActive)
                 {
                     //_fEngineAngularVelo.SetValue(_drivetrain, _omegaIn);
                     _fDifferentialSpeed.SetValue(_drivetrain, _omegaOut / baseRatio);
