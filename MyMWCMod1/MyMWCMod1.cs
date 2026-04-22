@@ -716,7 +716,6 @@ namespace MyMWCMod1
         {
             private string                 _goName;
             private Drivetrain             _drivetrain;
-            private float                  _tStall;
             private float                  _wStall;
             private float                  _rStall;
             private Dictionary<int, float> _gearRatios;
@@ -769,12 +768,11 @@ namespace MyMWCMod1
                 if (mode == "off") return null;
                 bool writeBack = mode == "on";
 
-                float tStall, wStall, rStall;
-                if (!float.TryParse(el.GetAttribute("tStall"), ns, ic, out tStall) ||
-                    !float.TryParse(el.GetAttribute("wStall"), ns, ic, out wStall) ||
+                float wStall, rStall;
+                if (!float.TryParse(el.GetAttribute("wStall"), ns, ic, out wStall) ||
                     !float.TryParse(el.GetAttribute("rStall"), ns, ic, out rStall))
                 {
-                    ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' missing or invalid tStall/wStall/rStall — skipped.");
+                    ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' missing or invalid wStall/rStall — skipped.");
                     return null;
                 }
 
@@ -835,7 +833,6 @@ namespace MyMWCMod1
                     _goName             = goName,
                     _drivetrain         = drivetrain,
                     _writeBack          = writeBack,
-                    _tStall             = tStall,
                     _wStall             = wStall,
                     _rStall             = rStall,
                     _vehicleMass        = vehicleMass,
@@ -1230,7 +1227,7 @@ namespace MyMWCMod1
         <Statistic field=""currentPower"" />
         <Statistic field=""powerMultiplier"" />
       </Statistics>
-      <TorqueConverter mode=""on"" tStall=""145"" wStall=""209"" rStall=""2"" vehicleMass=""1100"" wheelRadius=""0.3"">
+      <TorqueConverter mode=""on"" wStall=""209"" rStall=""2"" vehicleMass=""1100"" wheelRadius=""0.3"">
         <GearRatio gear=""2"" ratio=""10.6116"" />
         <GearRatio gear=""3"" ratio=""6.438"" />
         <GearRatio gear=""4"" ratio=""4.44"" />
