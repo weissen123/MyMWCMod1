@@ -135,7 +135,7 @@ Multiple `<Condition>` elements are AND-ed. If an object is not found at load ti
 **Torque converter** (`<TorqueConverter>` child inside `<Drivetrain>`, alongside `<Setting>` and `<Statistics>`):
 ```xml
 <TorqueConverter mode="on" tStall="145" wStall="209" rStall="2"
-                 iEngine="0.5" vehicleMass="1100" wheelRadius="0.3">
+                 vehicleMass="1100" wheelRadius="0.3">
   <GearRatio gear="2" ratio="10.6116" />
   <GearRatio gear="3" ratio="6.438" />
   <GearRatio gear="4" ratio="4.44" />
@@ -146,7 +146,6 @@ Multiple `<Condition>` elements are AND-ed. If an object is not found at load ti
 - `tStall`: stall torque (N·m) — T_drag when ω_in = ω_stall and ν = 0.
 - `wStall`: engine angular velocity (rad/s) at stall — 209 ≈ 2000 RPM.
 - `rStall`: torque ratio at stall (T_out / T_drag when ν = 0).
-- `iEngine`: engine + flywheel rotational inertia (kg·m²).
 - `vehicleMass`: vehicle mass used to compute effective output inertia I_eff = m × r_wheel² / gearRatio² (kg).
 - `wheelRadius`: wheel radius (m).
 - `<GearRatio gear="N" ratio="V">`: fixed drivetrain ratio for gear N. Active gears only; other gears skip the simulation tick.
