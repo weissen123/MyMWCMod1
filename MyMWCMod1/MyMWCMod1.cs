@@ -939,7 +939,7 @@ namespace MyMWCMod1
                     _overlayStyle.alignment = TextAnchor.UpperLeft;
                 }
                 var ic = System.Globalization.CultureInfo.InvariantCulture;
-                string text = _goName + " TC, Gear " + _lastGear + ":"
+                string text = _goName + " TC, Gear " + _lastGear + ", throttle: " + _lastThrottle.ToString("F3", ic) + ":"
                     + "\nnetTorque: "     + _lastNetTorque.ToString("F2", ic)
                     + "  T_out: "         + _lastTOut.ToString("F2", ic)
                     + "\nfrictionTorque: " + _lastFrictionTorque.ToString("F2", ic)
@@ -948,8 +948,7 @@ namespace MyMWCMod1
                     + "  R(ν): "          + _lastR.ToString("F3", ic)
                     + "\nfinalDriveRatio: " + _lastOriginalFinalDriveRatio.ToString("F4", ic)
                     + "  → "              + _lastUpdatedFinalDriveRatio.ToString("F4", ic)
-                    + "\n(ω_in/ω_stall)²×(1−ν): " + _lastTDragFactor.ToString("F4", ic)
-                    + "  throttle: "               + _lastThrottle.ToString("F3", ic);
+                    + "\n(ω_in/ω_stall)²×(1−ν): " + _lastTDragFactor.ToString("F4", ic);
                 GUI.Label(new Rect(10, 10, 500, 120), text, _overlayStyle);
             }
         }
