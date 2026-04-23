@@ -714,6 +714,52 @@ namespace MyMWCMod1
 
         private class TorqueConverterSimulator
         {
+            private class DeferredFsmFloat
+            {
+                private readonly string _path;
+                private readonly string _fsmName;
+                private readonly string _varName;
+
+                private GameObject   _cachedGO;
+                private PlayMakerFSM _cachedFsm;
+                private FsmFloat     _resolved;
+
+                public bool  IsResolved => _resolved != null;
+                public float Value      => _resolved.Value;
+
+                public DeferredFsmFloat(string path, string fsmName, string varName)
+                {
+                    _path = path; _fsmName = fsmName; _varName = varName;
+                }
+
+                public void TryResolve()
+                {
+                    if (_resolved != null) return;
+
+                    if (_cachedGO == null)
+                    {
+                        _cachedGO = GameObject.Find(_path);
+                        if (_cachedGO == null) return;
+                    }
+
+                    if (_cachedFsm == null)
+                    {
+                        foreach (PlayMakerFSM fsm in _cachedGO.GetComponentsInChildren<PlayMakerFSM>())
+                        {
+                            if (fsm.FsmName == _fsmName) { _cachedFsm = fsm; break; }
+                        }
+                        if (_cachedFsm == null) return;
+                    }
+
+                    FsmFloat result = _cachedFsm.FsmVariables.FindFsmFloat(_varName);
+                    if (result != null)
+                    {
+                        _resolved = result;
+                        ModConsole.Log("MyMWCMod1: TC '" + _varName + "' resolved = " + result.Value);
+                    }
+                }
+            }
+
             private string                 _goName;
             private Drivetrain             _drivetrain;
             private float                  _wStall;
@@ -729,8 +775,8 @@ namespace MyMWCMod1
             private System.Reflection.FieldInfo _fFrictionTorque;
             private System.Reflection.FieldInfo _fThrottle;
 
-            private float _vehicleMass;
-            private float _wheelRadius;
+            private DeferredFsmFloat _vehicleMass;
+            private DeferredFsmFloat _wheelRadius;
 
             private bool    _writeBack;
             private KeyCode _keyCode;
@@ -795,19 +841,26 @@ namespace MyMWCMod1
                 }
                 float wStall = rpmStall * 2f * (float)Math.PI / 60f;
 
-                float vehicleMass, wheelRadius;
-                if (!float.TryParse(el.GetAttribute("vehicleMass"), ns, ic, out vehicleMass) ||
-                    !float.TryParse(el.GetAttribute("wheelRadius"), ns, ic, out wheelRadius))
+                XmlElement massEl   = (XmlElement)el.SelectSingleNode("vehicleMass");
+                XmlElement radiusEl = (XmlElement)el.SelectSingleNode("wheelRadius");
+                if (massEl == null || radiusEl == null)
                 {
-                    ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' missing or invalid vehicleMass/wheelRadius — skipped.");
+                    ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' missing <vehicleMass> or <wheelRadius> — skipped.");
                     return null;
                 }
+                DeferredFsmFloat vehicleMass = new DeferredFsmFloat(
+                    massEl.GetAttribute("path"), massEl.GetAttribute("fsmName"), massEl.GetAttribute("fsmFloat"));
+                DeferredFsmFloat wheelRadius = new DeferredFsmFloat(
+                    radiusEl.GetAttribute("path"), radiusEl.GetAttribute("fsmName"), radiusEl.GetAttribute("fsmFloat"));
+                vehicleMass.TryResolve();
+                wheelRadius.TryResolve();
 
                 var gearRatios = new Dictionary<int, float>();
                 foreach (XmlNode child in el.ChildNodes)
                 {
                     if (child.NodeType != XmlNodeType.Element) continue;
                     XmlElement gearEl = (XmlElement)child;
+                    if (gearEl.Name != "GearRatio") continue;
                     int   gear;
                     float ratio;
                     if (int.TryParse(gearEl.GetAttribute("gear"), out gear) &&
@@ -908,11 +961,15 @@ namespace MyMWCMod1
                 float tDrag    = torque * wRatio * wRatio * (1f - nu);
                 float R        = nu < 0.9f ? _rStall - (_rStall - 1f) * (nu / 0.9f) : 1.0f;
                 float tOut     = tDrag * R;
-                bool  tcActive = throttle >= 0.15f && (throttle - _lastThrottle) > -0.05f && R >= 1.05f;
+                _vehicleMass.TryResolve();
+                _wheelRadius.TryResolve();
+                bool  tcActive = throttle >= 0.15f && (throttle - _lastThrottle) > -0.05f && R >= 1.05f
+                                 && _vehicleMass.IsResolved && _wheelRadius.IsResolved;
 
                 if (_writeBack && tcActive)
                 {
-                    float iEff = _vehicleMass * _wheelRadius * _wheelRadius / (baseRatio * baseRatio);
+                    float r    = _wheelRadius.Value;
+                    float iEff = _vehicleMass.Value * r * r / (baseRatio * baseRatio);
                     float dt   = UnityEngine.Time.fixedDeltaTime;
                     _omegaOut += tOut / iEff * dt;
                     _omegaOut  = Math.Max(0.01f, _omegaOut);
@@ -1249,7 +1306,9 @@ namespace MyMWCMod1
         <Statistic field=""currentPower"" />
         <Statistic field=""powerMultiplier"" />
       </Statistics>
-      <TorqueConverter mode=""on"" RPMStall=""2000"" rStall=""2"" vehicleMass=""1100"" wheelRadius=""0.3"" KeyCode=""KeypadEnter"">
+      <TorqueConverter mode=""on"" KeyCode=""KeypadEnter"" RPMStall=""2000"" rStall=""2"">
+        <vehicleMass path=""CORRIS/Simulation/CarData"" fsmName=""GetWeight"" fsmFloat=""Mass"" />
+        <wheelRadius path=""CORRIS/PhysicalAssemblies/REAR/AxleDamagePivot/RearWheelsStatic/WHEELc_RL/tire/VINP_WheelRL"" fsmName=""Data"" fsmFloat=""TireRadius"" />
         <GearRatio gear=""2"" ratio=""10.6116"" />
         <GearRatio gear=""3"" ratio=""6.438"" />
         <GearRatio gear=""4"" ratio=""4.44"" />

@@ -134,8 +134,9 @@ Multiple `<Condition>` elements are AND-ed. If an object is not found at load ti
 
 **Torque converter** (`<TorqueConverter>` child inside `<Drivetrain>`, alongside `<Setting>` and `<Statistics>`):
 ```xml
-<TorqueConverter mode="on" RPMStall="2000" rStall="2"
-                 vehicleMass="1100" wheelRadius="0.3" KeyCode="KeypadEnter">
+<TorqueConverter mode="on" KeyCode="KeypadEnter" RPMStall="2000" rStall="2">
+  <vehicleMass path="CORRIS/Simulation/CarData" fsmName="GetWeight" fsmFloat="Mass" />
+  <wheelRadius path="CORRIS/PhysicalAssemblies/REAR/AxleDamagePivot/RearWheelsStatic/WHEELc_RL/tire/VINP_WheelRL" fsmName="Data" fsmFloat="TireRadius" />
   <GearRatio gear="2" ratio="10.6116" />
   <GearRatio gear="3" ratio="6.438" />
   <GearRatio gear="4" ratio="4.44" />
@@ -145,9 +146,10 @@ Multiple `<Condition>` elements are AND-ed. If an object is not found at load ti
 - `mode`: `on` — integrate and write all five drivetrain fields + overlay; `display` — integrate and show overlay only, no write-back; `off` — skip loading entirely.
 - `RPMStall`: engine speed at stall in RPM — converted to rad/s internally (`wStall = RPMStall × 2π / 60`).
 - `rStall`: torque ratio at stall (T_out / T_drag when ν = 0).
-- `vehicleMass`: vehicle mass used to compute effective output inertia I_eff = m × r_wheel² / gearRatio² (kg).
-- `wheelRadius`: wheel radius (m).
 - `KeyCode` (optional): Unity `KeyCode` enum name (case-insensitive) — press at runtime to toggle between `on` and `display` modes. Omit to disable toggle. Has no effect when initial `mode` is `off` (instance not loaded).
+- `<vehicleMass path="..." fsmName="..." fsmFloat="...">`: lazily resolved FSM float for vehicle mass (kg) — used to compute I_eff = m × r_wheel² / gearRatio².
+- `<wheelRadius path="..." fsmName="..." fsmFloat="...">`: lazily resolved FSM float for wheel radius (m).
+- Both are resolved via staged GO → FSM → variable lookup; resolution is retried every tick until successful. Integration and write-back are suppressed until both are resolved.
 - `<GearRatio gear="N" ratio="V">`: fixed drivetrain ratio for gear N. Active gears only; other gears skip the simulation tick.
 - Per tick: integrates `ω_in += (torque − T_drag) / I_engine × dt` and `ω_out += T_out / I_eff × dt`; seeds both from game fields on first tick or after gear change; writes `engineAngularVelo`, `differentialSpeed`, `finalDriveRatio`, `netTorque`, `frictionTorque` back each tick. Skips when engine off or not in an active gear.
 
