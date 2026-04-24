@@ -855,12 +855,17 @@ namespace MyMWCMod1
                 vehicleMass.TryResolve();
                 wheelRadius.TryResolve();
 
+                XmlElement gearboxEl = (XmlElement)el.SelectSingleNode("Gearbox");
+                if (gearboxEl == null)
+                {
+                    ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' missing <Gearbox> — skipped.");
+                    return null;
+                }
                 var gearRatios = new Dictionary<int, float>();
-                foreach (XmlNode child in el.ChildNodes)
+                foreach (XmlNode child in gearboxEl.ChildNodes)
                 {
                     if (child.NodeType != XmlNodeType.Element) continue;
                     XmlElement gearEl = (XmlElement)child;
-                    if (gearEl.Name != "GearRatio") continue;
                     int   gear;
                     float ratio;
                     if (int.TryParse(gearEl.GetAttribute("gear"), out gear) &&
@@ -1309,9 +1314,11 @@ namespace MyMWCMod1
       <TorqueConverter mode=""on"" KeyCode=""KeypadEnter"" RPMStall=""2000"" rStall=""2"">
         <vehicleMass path=""CORRIS/Simulation/CarData"" fsmName=""GetWeight"" fsmFloat=""Mass"" />
         <wheelRadius path=""CORRIS/PhysicalAssemblies/REAR/AxleDamagePivot/RearWheelsStatic/WHEELc_RL/tire/VINP_WheelRL"" fsmName=""Data"" fsmFloat=""TireRadius"" />
-        <GearRatio gear=""2"" ratio=""10.6116"" />
-        <GearRatio gear=""3"" ratio=""6.438"" />
-        <GearRatio gear=""4"" ratio=""4.44"" />
+        <Gearbox>
+          <GearRatio gear=""2"" ratio=""10.6116"" />
+          <GearRatio gear=""3"" ratio=""6.438"" />
+          <GearRatio gear=""4"" ratio=""4.44"" />
+        </Gearbox>
       </TorqueConverter>
     </Drivetrain>
     <PivotReset vehicleName=""Corris""

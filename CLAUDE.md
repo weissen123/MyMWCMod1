@@ -137,9 +137,11 @@ Multiple `<Condition>` elements are AND-ed. If an object is not found at load ti
 <TorqueConverter mode="on" KeyCode="KeypadEnter" RPMStall="2000" rStall="2">
   <vehicleMass path="CORRIS/Simulation/CarData" fsmName="GetWeight" fsmFloat="Mass" />
   <wheelRadius path="CORRIS/PhysicalAssemblies/REAR/AxleDamagePivot/RearWheelsStatic/WHEELc_RL/tire/VINP_WheelRL" fsmName="Data" fsmFloat="TireRadius" />
-  <GearRatio gear="2" ratio="10.6116" />
-  <GearRatio gear="3" ratio="6.438" />
-  <GearRatio gear="4" ratio="4.44" />
+  <Gearbox>
+    <GearRatio gear="2" ratio="10.6116" />
+    <GearRatio gear="3" ratio="6.438" />
+    <GearRatio gear="4" ratio="4.44" />
+  </Gearbox>
 </TorqueConverter>
 ```
 
@@ -150,7 +152,7 @@ Multiple `<Condition>` elements are AND-ed. If an object is not found at load ti
 - `<vehicleMass path="..." fsmName="..." fsmFloat="...">`: lazily resolved FSM float for vehicle mass (kg) — used to compute I_eff = m × r_wheel² / gearRatio².
 - `<wheelRadius path="..." fsmName="..." fsmFloat="...">`: lazily resolved FSM float for wheel radius (m).
 - Both are resolved via staged GO → FSM → variable lookup; resolution is retried every tick until successful. Integration and write-back are suppressed until both are resolved.
-- `<GearRatio gear="N" ratio="V">`: fixed drivetrain ratio for gear N. Active gears only; other gears skip the simulation tick.
+- `<Gearbox>`: required wrapper containing one `<GearRatio gear="N" ratio="V">` per active gear. Active gears only; other gears skip the simulation tick.
 - Per tick: integrates `ω_in += (torque − T_drag) / I_engine × dt` and `ω_out += T_out / I_eff × dt`; seeds both from game fields on first tick or after gear change; writes `engineAngularVelo`, `differentialSpeed`, `finalDriveRatio`, `netTorque`, `frictionTorque` back each tick. Skips when engine off or not in an active gear.
 
 ### Wear Reduction Logic (`ComponentMonitor.ApplyReduction`)
