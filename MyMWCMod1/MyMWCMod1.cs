@@ -648,7 +648,14 @@ namespace MyMWCMod1
             private void CheckToggle()
             {
                 if (!Input.GetKeyDown(_keyCode)) return;
-                if (_collecting) StopCollecting(); else StartCollecting();
+                bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
+                if (ctrl) SaveAndStop();
+                else      ToggleOverlay();
+            }
+
+            private void ToggleOverlay()
+            {
+                if (_collecting) DiscardAndStop(); else StartCollecting();
             }
 
             private void StartCollecting()
@@ -663,10 +670,19 @@ namespace MyMWCMod1
                 ModConsole.Log("MyMWCMod1: Started collecting statistics for " + _goName + ".");
             }
 
-            private void StopCollecting()
+            private void DiscardAndStop()
             {
                 _collecting = false;
+                _csv        = null;
+                ModConsole.Log("MyMWCMod1: Statistics discarded for " + _goName + ".");
+            }
+
+            private void SaveAndStop()
+            {
+                if (!_collecting) return;
+                _collecting = false;
                 WriteCSV();
+                _csv = null;
             }
 
             private void Collect()

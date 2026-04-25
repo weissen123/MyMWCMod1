@@ -126,7 +126,7 @@ Multiple `<Condition>` elements are AND-ed. If an object is not found at load ti
 ```
 
 - `fileName`: base name for the output file; timestamp is appended automatically (`fileName_yyyyMMdd_HHmmss.csv`).
-- `KeyCode`: Unity `KeyCode` enum name (case-insensitive). Press once to start, press again to stop and write.
+- `KeyCode`: Unity `KeyCode` enum name (case-insensitive). Press to show overlay and start collecting; press again to hide overlay and discard data. Press `Ctrl+KeyCode` to save collected data to a timestamped CSV and hide overlay.
 - `<Statistic field="...">`: each `field` must match a `Drivetrain` field name (public or private, instance). Unknown fields are logged and skipped at load.
 - `live="X"` (optional): marks a field for live display in the overlay during collection. Omit the attribute to record in CSV only.
 - CSV is sampled at 10 Hz (one row per 100 ms); overlay updates every OnGUI frame.
