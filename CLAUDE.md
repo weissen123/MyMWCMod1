@@ -50,9 +50,9 @@ MyMWCMod1/
 - **Lifecycle hooks registered in `ModSetup()`:**
   - `OnLoad` → `Mod_OnLoad`: calls `SetupMonitors()` then `PivotResetConfig.Init(xmlPath)` — resolves game objects and FSM references
   - `Update` → `Mod_Update`: calls `TorqueConverterSimulator.UpdateAll()` and `DrivetrainStatisticsCollector.UpdateAll()`, then dispatches keybind presses to `PivotResetConfig.ResetCurrentPivot()` or `PivotResetConfig.SaveCurrentPivot()`
-  - `FixedUpdate` → `Mod_FixedUpdate`: calls `ComponentMonitor.ApplyAll()`, `DrivetrainMonitor.ApplyAll()`, and `DrivetrainStatisticsCollector.CollectAll()` every physics tick
+  - `FixedUpdate` → `Mod_FixedUpdate`: calls `ComponentMonitor.ApplyAll()`, `DrivetrainMonitor.ApplyAll()`, `TorqueConverterSimulator.ApplyAll()`, and `DrivetrainStatisticsCollector.CollectAll()` every physics tick
   - `ModSettings` → `Mod_Settings`: calls `DrivetrainMonitor.RegisterSettings(XmlPath)` to register in-game settings UI from XML, registers the `Reset Player Pivot` and `Save Player Pivot` keybinds, and adds CSV dump buttons
-  - `OnGUI` → `Mod_OnGUI`: calls `DrivetrainStatisticsCollector.DrawAll()` to render the collection overlay
+  - `OnGUI` → `Mod_OnGUI`: calls `DrivetrainStatisticsCollector.DrawAll()` and `TorqueConverterSimulator.DrawAll()` to render overlays
 
 ### Inner Classes
 
@@ -68,7 +68,8 @@ MyMWCMod1/
 | `GameObjectCsvDumper` | Recursively walks a GameObject hierarchy and writes all PlayMaker FSM variables to a CSV. `Dump(rootName)` is the single public entry point. |
 | `DrivetrainCsvDumper` | Finds all `Drivetrain` components under a root GameObject via `GetComponentsInChildren` and writes their public instance fields to a CSV via reflection. `Dump(rootName)` is the single public entry point. |
 | `DrivetrainStatisticsCollector` | Per-tick Drivetrain field recorder. Toggled by a configurable hotkey (`Input.GetKeyDown`); shows a top-center overlay while active; writes a timestamped CSV on stop. Fields resolved at load time via reflection. Owns its static `_instances` list; `LoadFromXml` constructs from `<Statistics>` inside `<Drivetrain>`; `UpdateAll`/`CollectAll`/`DrawAll` are the tick-dispatch entry points. |
-| `TorqueConverterSimulator` | Per-tick torque converter physics with dynamic integration. Maintains own `_omegaIn`/`_omegaOut` state; each tick integrates `ω_in += (torque − T_drag) / I_engine × dt` and `ω_out += T_out / I_eff × dt`, then writes `engineAngularVelo`, `differentialSpeed`, `finalDriveRatio`, `netTorque`, `frictionTorque` back to the game Drivetrain. Seeds from game fields on first tick or gear change; skips when engine off or gear not in ratio table. Owns `_instances`; `LoadFromXml` constructs from `<TorqueConverter>` inside `<Drivetrain>`; `UpdateAll`/`ApplyAll`/`DrawAll` are the tick-dispatch entry points. |
+| `TorqueConverterSimulator` | Per-tick torque converter physics. `ω_in` is read from game's `engineAngularVelo` each tick; `ω_out` is integrated via `ω_out += T_out / I_eff × dt` when TC is active (throttle ≥ 0.15, drop ≤ 0.05/tick, R ≥ 1.05, both FSM floats resolved). In `on` mode writes `differentialSpeed`, `finalDriveRatio`, `netTorque`, `frictionTorque` back. Seeds from game on first tick or gear change; skips when engine off or gear not in table. Owns `_instances`; `LoadFromXml` constructs from `<TorqueConverter>` inside `<Drivetrain>`; `UpdateAll`/`ApplyAll`/`DrawAll` are the tick-dispatch entry points. |
+| `TorqueConverterSimulator.DeferredFsmFloat` | Staged GO → FSM → variable lookup for a single `FsmFloat`; caches each stage; `TryResolve()` is a no-op once resolved. Used to lazily bind `vehicleMass` and `wheelRadius`. |
 
 ### XML Configuration (`Mods/MyMWCMod1_monitors.xml`)
 
@@ -117,7 +118,7 @@ Multiple `<Condition>` elements are AND-ed. If an object is not found at load ti
 ```xml
 <Drivetrain>
   <Setting .../>
-  <Statistics fileName="MWC_Drivetrain_Stat_CORRIS" KeyCode="KeypadEnter">
+  <Statistics fileName="MWC_Drivetrain_Stat_CORRIS" KeyCode="KeypadDivide">
     <Statistic field="torque" />
     <Statistic field="rpm" />
   </Statistics>
@@ -153,7 +154,7 @@ Multiple `<Condition>` elements are AND-ed. If an object is not found at load ti
 - `<wheelRadius path="..." fsmName="..." fsmFloat="...">`: lazily resolved FSM float for wheel radius (m).
 - Both are resolved via staged GO → FSM → variable lookup; resolution is retried every tick until successful. Integration and write-back are suppressed until both are resolved.
 - `<Gearbox>`: required wrapper containing one `<GearRatio gear="N" ratio="V">` per active gear. Active gears only; other gears skip the simulation tick.
-- Per tick: integrates `ω_in += (torque − T_drag) / I_engine × dt` and `ω_out += T_out / I_eff × dt`; seeds both from game fields on first tick or after gear change; writes `engineAngularVelo`, `differentialSpeed`, `finalDriveRatio`, `netTorque`, `frictionTorque` back each tick. Skips when engine off or not in an active gear.
+- Per tick: reads `ω_in` from game's `engineAngularVelo`; integrates `ω_out += T_out / I_eff × dt` when TC active; seeds `ω_out` from game on first tick or gear change. In `on` mode writes `differentialSpeed`, `finalDriveRatio`, `netTorque`, `frictionTorque` back. Skips when engine off or not in an active gear.
 
 ### Wear Reduction Logic (`ComponentMonitor.ApplyReduction`)
 
