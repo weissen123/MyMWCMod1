@@ -987,7 +987,6 @@ namespace MyMWCMod1
                 float nuNew = _omegaOut / Math.Max(0.01f, _omegaIn);
                 if (_writeBack && tcActive)
                 {
-                    //_fEngineAngularVelo.SetValue(_drivetrain, _omegaIn);
                     _fDifferentialSpeed.SetValue(_drivetrain, _omegaOut / baseRatio);
                     _fFinalDriveRatio.SetValue(  _drivetrain, baseRatio / nuNew);
                     _fNetTorque.SetValue(        _drivetrain, tOut * nuNew);
