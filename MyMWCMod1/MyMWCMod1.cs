@@ -649,7 +649,7 @@ namespace MyMWCMod1
             {
                 if (!Input.GetKeyDown(_keyCode)) return;
                 bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
-                if (ctrl) SaveAndStop();
+                if (ctrl) SaveAndReset();
                 else      ToggleOverlay();
             }
 
@@ -677,12 +677,11 @@ namespace MyMWCMod1
                 ModConsole.Log("MyMWCMod1: Statistics discarded for " + _goName + ".");
             }
 
-            private void SaveAndStop()
+            private void SaveAndReset()
             {
                 if (!_collecting) return;
-                _collecting = false;
                 WriteCSV();
-                _csv = null;
+                StartCollecting();
             }
 
             private void Collect()
