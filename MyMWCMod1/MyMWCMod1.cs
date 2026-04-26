@@ -847,7 +847,7 @@ namespace MyMWCMod1
                 Dictionary<int, float> gearRatios = LoadGearRatios(el, goName);
                 if (gearRatios == null) return null;
 
-                System.Reflection.FieldInfo[] fields = ResolveFields(drivetrain.GetType(), goName);
+                Dictionary<string, System.Reflection.FieldInfo> fields = ResolveFields(drivetrain.GetType(), goName);
                 if (fields == null) return null;
 
                 return new TorqueConverterSimulator
@@ -861,14 +861,14 @@ namespace MyMWCMod1
                     _vehicleMass        = vehicleMass,
                     _wheelRadius        = wheelRadius,
                     _gearRatios         = gearRatios,
-                    _fEngineAngularVelo = fields[0],
-                    _fDifferentialSpeed = fields[1],
-                    _fGear              = fields[2],
-                    _fNetTorque         = fields[3],
-                    _fFinalDriveRatio   = fields[4],
-                    _fTorque            = fields[5],
-                    _fFrictionTorque    = fields[6],
-                    _fThrottle          = fields[7],
+                    _fEngineAngularVelo = fields["engineAngularVelo"],
+                    _fDifferentialSpeed = fields["differentialSpeed"],
+                    _fGear              = fields["gear"],
+                    _fNetTorque         = fields["netTorque"],
+                    _fFinalDriveRatio   = fields["finalDriveRatio"],
+                    _fTorque            = fields["torque"],
+                    _fFrictionTorque    = fields["frictionTorque"],
+                    _fThrottle          = fields["throttle"],
                 };
             }
 
@@ -950,20 +950,23 @@ namespace MyMWCMod1
                 return gearRatios;
             }
 
-            private static System.Reflection.FieldInfo[] ResolveFields(Type dt, string goName)
+            private static Dictionary<string, System.Reflection.FieldInfo> ResolveFields(Type dt, string goName)
             {
                 var bf = System.Reflection.BindingFlags.Public   |
                          System.Reflection.BindingFlags.NonPublic |
                          System.Reflection.BindingFlags.Instance;
                 string[] names = { "engineAngularVelo", "differentialSpeed", "gear", "netTorque",
                                     "finalDriveRatio",   "torque",            "frictionTorque", "throttle" };
-                var fields = new System.Reflection.FieldInfo[names.Length];
-                for (int i = 0; i < names.Length; i++)
+                var fields = new Dictionary<string, System.Reflection.FieldInfo>();
+                foreach (string name in names)
                 {
-                    fields[i] = dt.GetField(names[i], bf);
-                    if (fields[i] != null) continue;
-                    ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' could not resolve field '" + names[i] + "' — skipped.");
-                    return null;
+                    System.Reflection.FieldInfo fi = dt.GetField(name, bf);
+                    if (fi == null)
+                    {
+                        ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' could not resolve field '" + name + "' — skipped.");
+                        return null;
+                    }
+                    fields[name] = fi;
                 }
                 return fields;
             }
