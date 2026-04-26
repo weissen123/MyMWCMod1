@@ -881,6 +881,7 @@ namespace MyMWCMod1
                 {
                     if (child.NodeType != XmlNodeType.Element) continue;
                     XmlElement gearEl = (XmlElement)child;
+                    if (gearEl.Name != "GearRatio") continue;
                     int   gear;
                     float ratio;
                     if (int.TryParse(gearEl.GetAttribute("gear"), out gear) &&
