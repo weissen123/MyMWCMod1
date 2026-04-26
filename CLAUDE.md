@@ -197,6 +197,7 @@ Types: `Float`, `Int`, `Bool`. FSMs with no variables emit `N/A`.
 - **Eliminate dispatcher methods.** A method that does nothing but call a single method on another class adds no value. Once logic lives on the right class, remove the wrapper.
 - **Inject dependencies via Init, not outer-class coupling.** When an inner class needs external state (lists, paths, global strings), inject it once through a dedicated static `Init()` method. The inner class must not reference the outer class instance.
 - **Cache results of work already done.** If a helper performs a lookup as part of its own logic, store the result on the object rather than discarding it and repeating the lookup in every caller.
+- **Name every slot.** Never use a positional index (`array[0]`, `array[3]`) to identify a semantically distinct value. Use a `Dictionary<string, T>`, a named struct field, or a named local — so each access site is self-documenting without requiring the reader to cross-reference an index-to-meaning table.
 
 ## Notes
 
