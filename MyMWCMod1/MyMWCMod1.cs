@@ -849,9 +849,7 @@ namespace MyMWCMod1
                     Dictionary<int, float> gearRatios = LoadGearRatios(el, goName);
                     if (gearRatios == null) return null;
 
-                    string[] fieldNames = { "engineAngularVelo", "differentialSpeed", "gear", "netTorque",
-                                            "finalDriveRatio",   "torque",            "frictionTorque", "throttle" };
-                    Dictionary<string, System.Reflection.FieldInfo> fields = ResolveFields(drivetrain.GetType(), fieldNames, goName);
+                    Dictionary<string, System.Reflection.FieldInfo> fields = ResolveFields(drivetrain.GetType(), goName);
                     if (fields == null) return null;
 
                     return new TorqueConverterSimulator
@@ -954,11 +952,13 @@ namespace MyMWCMod1
                     return gearRatios;
                 }
 
-                public static Dictionary<string, System.Reflection.FieldInfo> ResolveFields(Type dt, string[] names, string goName)
+                public static Dictionary<string, System.Reflection.FieldInfo> ResolveFields(Type dt, string goName)
                 {
                     var bf = System.Reflection.BindingFlags.Public   |
                              System.Reflection.BindingFlags.NonPublic |
                              System.Reflection.BindingFlags.Instance;
+                    string[] names = { "engineAngularVelo", "differentialSpeed", "gear", "netTorque",
+                                        "finalDriveRatio",   "torque",            "frictionTorque", "throttle" };
                     var fields = new Dictionary<string, System.Reflection.FieldInfo>();
                     foreach (string name in names)
                     {
