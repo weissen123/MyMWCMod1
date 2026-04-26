@@ -729,7 +729,7 @@ namespace MyMWCMod1
 
         private class TorqueConverterSimulator
         {
-            private class DeferredFsmFloat
+            public class DeferredFsmFloat
             {
                 private readonly string _path;
                 private readonly string _fsmName;
