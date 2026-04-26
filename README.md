@@ -12,8 +12,10 @@ Targets two vehicles: **CORRIS** (the car — wear reduction on configured engin
 - **Heavily reduced wear rates** for oil level, oil filter dirt, headlight bulbs, spark plugs, alternator, brake fluid, heaterbox, waterpump, and head gasket — no need to swap half of the Corris after each drive any more
 - **Configurable `canStall` flag** for the CORRIS engine, applied only when electricity, fuel, and combustion FSM conditions are all true — fix for automatic transmission "not crawl" issue
 - **Player camera pivot reset** — press a configurable key to snap the in-car camera back to a stored seated pose; works per-vehicle (Taxi and Corris configured by default), only fires while you are inside the matching vehicle
+- **Torque Converter Simulator** — per-gear torque-converter physics layered on top of the drivetrain; integrates output-shaft speed and optionally writes back `differentialSpeed`, `netTorque`, `frictionTorque`, and `finalDriveRatio`; live overlay shows TC state; toggle between write-back (`on`) and display-only (`display`) mode with a configurable key
+- **Drivetrain statistics recorder** — press a key to show a live overlay of configured drivetrain fields; `Ctrl+key` saves a timestamped CSV and resets the buffer; hiding the overlay discards unsaved data
 - **XML-driven configuration** — all monitors, drivetrain settings, and pivot reset poses live in a single editable file; delete it to regenerate defaults
-- **FSM CSV dumper** — export all PlayMaker FSM variables (float, int, bool) from CORRIS or BACHGLOTZ to a CSV, useful for discovering new paths and variable names
+- **CSV dumpers** — export PlayMaker FSM variables or Drivetrain component fields to CSV from the mod settings menu, useful for discovering new paths and variable names
 
 ---
 
@@ -34,8 +36,9 @@ Settings are registered via MSCLoader and appear in the mod settings menu.
 | Automated Manual Transmission (AMT) | Checkbox | On | — | Auto-shifts the taxi |
 | Shift Up RPM | Slider | 3500 | 1000 – 8000 | RPM at which AMT shifts up |
 | Shift Down RPM | Slider | 1700 | 500 – 7000 | RPM at which AMT shifts down |
-| Corris Engine can stall | Checkbox | Off | — | Whether the CORRIS engine can stall; only applied when electricity (`ElectricsOK`), fuel (`FuelOK`), and combustion (`CombustionOK`) FSM conditions are all true simultaneously |
+| Corris Engine can stall | Checkbox | Off | — | Whether the CORRIS engine can stall; only applied when electricity, fuel, and combustion FSM conditions are all true simultaneously |
 | Reset Player Pivot | Keybind | `\` | — | Snaps the in-car PLAYER transform to the stored pose for the current vehicle |
+| Save Player Pivot | Keybind | `Ctrl+\` | — | Saves the current PLAYER transform pose to XML for the current vehicle |
 
 ---
 
@@ -106,12 +109,72 @@ With `factor = 0.01` only 1 % of each tick's wear is kept. The component still w
             <Condition path="CORRIS/Simulation/Electricity"       fsmName="Power"     fsmBool="ElectricsOK"  />
             <Condition path="CORRIS/Simulation/Engine/Fuel"       fsmName="FuelLine"  fsmBool="FuelOK"       />
             <Condition path="CORRIS/Simulation/Engine/Combustion" fsmName="Cylinders" fsmBool="CombustionOK" />
+            <Condition path="CORRIS" CompName="Drivetrain" varFloat="rpm" minFloat="400" />
         </Setting>
     </Drivetrain>
 </Monitor>
 ```
 
-A `<Setting>` of type `checkbox` may include one or more `<Condition>` children. All conditions must be true simultaneously (AND logic) for the setting to be applied; an empty condition list means always apply. If an object is not found at load time the condition is deferred and retried every physics tick — it evaluates as `false` until resolved. If a condition element is missing a required attribute (`path`, `fsmName`, `fsmBool`) it is skipped entirely.
+A `<Setting>` may include one or more `<Condition>` children. All conditions are AND-ed; an empty list means always apply. Two condition forms are supported:
+
+| Form | Required attributes | Evaluates as |
+|---|---|---|
+| FsmBool | `path`, `fsmName`, `fsmBool` | value of the named PlayMaker bool variable |
+| ComponentFloat | `path`, `CompName`, `varFloat`, `minFloat` | `field >= minFloat` via reflection |
+
+Unresolved conditions (object not found at load time) are retried every physics tick and evaluate as `false` until resolved.
+
+### Statistics collector
+
+A `<Statistics>` child inside `<Drivetrain>` records drivetrain fields over time.
+
+```xml
+<Drivetrain>
+  <Setting .../>
+  <Statistics fileName="MWC_Drivetrain_Stat_CORRIS" KeyCode="KeypadDivide">
+    <Statistic field="torque" live="1" />
+    <Statistic field="rpm"   live="1" />
+  </Statistics>
+</Drivetrain>
+```
+
+| Attribute / element | Description |
+|---|---|
+| `fileName` | Base name for the output CSV; timestamp (`_yyyyMMdd_HHmmss`) appended automatically |
+| `KeyCode` | Unity KeyCode — press to show overlay and start collecting; press again to hide overlay and discard data. `Ctrl+KeyCode` saves a timestamped CSV, resets the buffer, and keeps the overlay on |
+| `<Statistic field="...">` | Field name on `Drivetrain` (public or private). Unknown fields are logged and skipped |
+| `live="X"` (optional) | Show field value in the live overlay; omit to record in CSV only |
+
+CSV format: `Time(s);field1;field2;...` — sampled at 10 Hz, InvariantCulture decimal separators.
+
+### Torque Converter Simulator
+
+A `<TorqueConverter>` child inside `<Drivetrain>` enables per-gear TC physics.
+
+```xml
+<TorqueConverter mode="on" KeyCode="KeypadEnter" RPMStall="2000" rStall="2">
+  <vehicleMass path="CORRIS/Simulation/CarData" fsmName="GetWeight" fsmFloat="Mass" />
+  <wheelRadius path="CORRIS/PhysicalAssemblies/REAR/AxleDamagePivot/RearWheelsStatic/WHEELc_RL/tire/VINP_WheelRL"
+               fsmName="Data" fsmFloat="TireRadius" />
+  <Gearbox>
+    <GearRatio gear="2" ratio="10.6116" />
+    <GearRatio gear="3" ratio="6.438" />
+    <GearRatio gear="4" ratio="4.44" />
+  </Gearbox>
+</TorqueConverter>
+```
+
+| Attribute / element | Description |
+|---|---|
+| `mode` | `on` — integrate and write back drivetrain fields + show overlay; `display` — overlay only, no write-back; `off` — skip entirely |
+| `KeyCode` (optional) | Toggle between `on` and `display` at runtime. No effect when initial `mode` is `off` |
+| `RPMStall` | Engine speed at stall in RPM |
+| `rStall` | Torque ratio T_out/T_drag at speed ratio ν = 0 |
+| `<vehicleMass>` / `<wheelRadius>` | Lazily-resolved FSM floats (staged GO → FSM → variable lookup); integration and write-back are suspended until both are found |
+| `<Gearbox>` | Required wrapper; contains one `<GearRatio>` per active gear |
+| `<GearRatio gear="N" ratio="V">` | Active gears only. Rename to `<xGearRatio>` to deactivate a gear without deleting it |
+
+In `on` mode, every physics tick the simulator reads `engineAngularVelo`, integrates `ω_out`, and writes `differentialSpeed`, `finalDriveRatio`, `netTorque`, and `frictionTorque` back to the drivetrain. The live overlay shows gear, throttle, torque values, speed ratio, and final drive ratio.
 
 ### Pivot reset
 
@@ -134,24 +197,23 @@ A `<PivotReset>` child on any `<Monitor>` defines the stored seated pose for a v
 | `posX/Y/Z` | Target `localPosition` |
 | `rotX/Y/Z` | Target `localEulerAngles` |
 
-To add pivot reset support for another vehicle, add a `<PivotReset>` element to that vehicle's `<Monitor>` — no code changes needed.
+To add pivot reset support for another vehicle, add a `<PivotReset>` element to that vehicle's `<Monitor>` — no code changes needed. Press `Save Player Pivot` (`Ctrl+\`) while seated in the vehicle to write the current pose back to the XML file.
 
 ---
 
-## FSM CSV Dumper
+## CSV Dumpers
 
-Open the mod settings menu and click one of the dump buttons. A semicolon-delimited CSV is written to the game folder:
+Buttons in the mod settings menu trigger CSV exports to the game folder.
 
-```
-MWC_FSM_Dump_CORRIS.csv
-MWC_FSM_Dump_BACHGLOTZ(1905kg).csv
-```
+**FSM dump** (`MWC_FSM_Dump_<vehicle>.csv`) — recursively walks a game object hierarchy and writes all PlayMaker FSM variables.
 
 Columns: `GameObject Path ; FSM Name ; Type ; Variable Name ; Value`
 
 `Type` is `Float`, `Int`, or `Bool`. Rows with no variables show `N/A`.
 
-Use this to discover new object paths and FSM variable names for adding your own `<Monitor>` entries.
+**Drivetrain dump** (`MWC_Drivetrain_<vehicle>.csv`) — finds all `Drivetrain` components under a root game object and writes their public instance fields via reflection.
+
+Use these to discover object paths and variable names for adding your own `<Monitor>` or `<Statistic>` entries.
 
 ---
 
