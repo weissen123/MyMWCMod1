@@ -832,94 +832,23 @@ namespace MyMWCMod1
 
             public static TorqueConverterSimulator LoadFromXml(XmlElement el, Drivetrain drivetrain, string goName)
             {
-                var ns = System.Globalization.NumberStyles.Float;
-                var ic = System.Globalization.CultureInfo.InvariantCulture;
+                bool writeBack;
+                if (!ParseMode(el, goName, out writeBack)) return null;
 
-                string mode = el.GetAttribute("mode");
-                if (mode == "off") return null;
-                bool writeBack = mode == "on";
+                float wStall, rStall;
+                if (!ParseStallParams(el, goName, out wStall, out rStall)) return null;
 
-                KeyCode keyCode = KeyCode.None;
-                string keyCodeStr = el.GetAttribute("KeyCode");
-                if (!string.IsNullOrEmpty(keyCodeStr))
-                {
-                    try { keyCode = (KeyCode)System.Enum.Parse(typeof(KeyCode), keyCodeStr, true); }
-                    catch { ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' invalid KeyCode '" + keyCodeStr + "' — toggle disabled."); }
-                }
+                KeyCode keyCode = ParseKeyCode(el, goName);
 
-                float rpmStall, rStall;
-                if (!float.TryParse(el.GetAttribute("RPMStall"), ns, ic, out rpmStall) ||
-                    !float.TryParse(el.GetAttribute("rStall"),   ns, ic, out rStall))
-                {
-                    ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' missing or invalid RPMStall/rStall — skipped.");
-                    return null;
-                }
-                float wStall = rpmStall * 2f * (float)Math.PI / 60f;
+                DeferredFsmFloat vehicleMass = LoadDeferredFloat(el, "vehicleMass", goName);
+                DeferredFsmFloat wheelRadius = LoadDeferredFloat(el, "wheelRadius", goName);
+                if (vehicleMass == null || wheelRadius == null) return null;
 
-                XmlElement massEl   = (XmlElement)el.SelectSingleNode("vehicleMass");
-                XmlElement radiusEl = (XmlElement)el.SelectSingleNode("wheelRadius");
-                if (massEl == null || radiusEl == null)
-                {
-                    ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' missing <vehicleMass> or <wheelRadius> — skipped.");
-                    return null;
-                }
-                DeferredFsmFloat vehicleMass = new DeferredFsmFloat(
-                    massEl.GetAttribute("path"), massEl.GetAttribute("fsmName"), massEl.GetAttribute("fsmFloat"));
-                DeferredFsmFloat wheelRadius = new DeferredFsmFloat(
-                    radiusEl.GetAttribute("path"), radiusEl.GetAttribute("fsmName"), radiusEl.GetAttribute("fsmFloat"));
-                vehicleMass.TryResolve();
-                wheelRadius.TryResolve();
+                Dictionary<int, float> gearRatios = LoadGearRatios(el, goName);
+                if (gearRatios == null) return null;
 
-                XmlElement gearboxEl = (XmlElement)el.SelectSingleNode("Gearbox");
-                if (gearboxEl == null)
-                {
-                    ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' missing <Gearbox> — skipped.");
-                    return null;
-                }
-                var gearRatios = new Dictionary<int, float>();
-                foreach (XmlNode child in gearboxEl.ChildNodes)
-                {
-                    if (child.NodeType != XmlNodeType.Element) continue;
-                    XmlElement gearEl = (XmlElement)child;
-                    if (gearEl.Name != "GearRatio") continue;
-                    int   gear;
-                    float ratio;
-                    if (int.TryParse(gearEl.GetAttribute("gear"), out gear) &&
-                        float.TryParse(gearEl.GetAttribute("ratio"), ns, ic, out ratio))
-                        gearRatios[gear] = ratio;
-                    else
-                        ModConsole.Error("MyMWCMod1: <GearRatio> for '" + goName + "' invalid gear/ratio — skipped.");
-                }
-
-                if (gearRatios.Count == 0)
-                {
-                    ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' has no valid gear ratios — skipped.");
-                    return null;
-                }
-
-                System.Reflection.BindingFlags bf =
-                    System.Reflection.BindingFlags.Public   |
-                    System.Reflection.BindingFlags.NonPublic |
-                    System.Reflection.BindingFlags.Instance;
-                Type dt = drivetrain.GetType();
-
-                System.Reflection.FieldInfo fEngineAngularVelo = dt.GetField("engineAngularVelo", bf);
-                System.Reflection.FieldInfo fDifferentialSpeed = dt.GetField("differentialSpeed", bf);
-                System.Reflection.FieldInfo fGear              = dt.GetField("gear",              bf);
-                System.Reflection.FieldInfo fNetTorque         = dt.GetField("netTorque",         bf);
-                System.Reflection.FieldInfo fFinalDriveRatio   = dt.GetField("finalDriveRatio",   bf);
-                System.Reflection.FieldInfo fTorque            = dt.GetField("torque",            bf);
-                System.Reflection.FieldInfo fFrictionTorque    = dt.GetField("frictionTorque",    bf);
-                System.Reflection.FieldInfo fThrottle          = dt.GetField("throttle",          bf);
-
-                if (fEngineAngularVelo == null || fDifferentialSpeed == null ||
-                    fGear             == null  || fNetTorque         == null  ||
-                    fFinalDriveRatio  == null  || fTorque            == null  ||
-                    fFrictionTorque   == null  || fThrottle          == null)
-                {
-                    ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' could not resolve one or more Drivetrain fields — skipped.");
-                    return null;
-                }
+                System.Reflection.FieldInfo[] fields = ResolveFields(drivetrain.GetType(), goName);
+                if (fields == null) return null;
 
                 return new TorqueConverterSimulator
                 {
@@ -932,15 +861,111 @@ namespace MyMWCMod1
                     _vehicleMass        = vehicleMass,
                     _wheelRadius        = wheelRadius,
                     _gearRatios         = gearRatios,
-                    _fEngineAngularVelo = fEngineAngularVelo,
-                    _fDifferentialSpeed = fDifferentialSpeed,
-                    _fGear              = fGear,
-                    _fNetTorque         = fNetTorque,
-                    _fFinalDriveRatio   = fFinalDriveRatio,
-                    _fTorque            = fTorque,
-                    _fFrictionTorque    = fFrictionTorque,
-                    _fThrottle          = fThrottle,
+                    _fEngineAngularVelo = fields[0],
+                    _fDifferentialSpeed = fields[1],
+                    _fGear              = fields[2],
+                    _fNetTorque         = fields[3],
+                    _fFinalDriveRatio   = fields[4],
+                    _fTorque            = fields[5],
+                    _fFrictionTorque    = fields[6],
+                    _fThrottle          = fields[7],
                 };
+            }
+
+            private static bool ParseMode(XmlElement el, string goName, out bool writeBack)
+            {
+                string mode = el.GetAttribute("mode");
+                writeBack = mode == "on";
+                return mode != "off";
+            }
+
+            private static bool ParseStallParams(XmlElement el, string goName, out float wStall, out float rStall)
+            {
+                var ns = System.Globalization.NumberStyles.Float;
+                var ic = System.Globalization.CultureInfo.InvariantCulture;
+                float rpmStall;
+                rStall = wStall = 0f;
+                if (!float.TryParse(el.GetAttribute("RPMStall"), ns, ic, out rpmStall) ||
+                    !float.TryParse(el.GetAttribute("rStall"),   ns, ic, out rStall))
+                {
+                    ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' missing or invalid RPMStall/rStall — skipped.");
+                    return false;
+                }
+                wStall = rpmStall * 2f * (float)Math.PI / 60f;
+                return true;
+            }
+
+            private static KeyCode ParseKeyCode(XmlElement el, string goName)
+            {
+                string str = el.GetAttribute("KeyCode");
+                if (string.IsNullOrEmpty(str)) return KeyCode.None;
+                try { return (KeyCode)System.Enum.Parse(typeof(KeyCode), str, true); }
+                catch
+                {
+                    ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' invalid KeyCode '" + str + "' — toggle disabled.");
+                    return KeyCode.None;
+                }
+            }
+
+            private static DeferredFsmFloat LoadDeferredFloat(XmlElement el, string tag, string goName)
+            {
+                XmlElement child = (XmlElement)el.SelectSingleNode(tag);
+                if (child == null)
+                {
+                    ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' missing <" + tag + "> — skipped.");
+                    return null;
+                }
+                DeferredFsmFloat result = new DeferredFsmFloat(
+                    child.GetAttribute("path"), child.GetAttribute("fsmName"), child.GetAttribute("fsmFloat"));
+                result.TryResolve();
+                return result;
+            }
+
+            private static Dictionary<int, float> LoadGearRatios(XmlElement el, string goName)
+            {
+                var ns = System.Globalization.NumberStyles.Float;
+                var ic = System.Globalization.CultureInfo.InvariantCulture;
+                XmlElement gearboxEl = (XmlElement)el.SelectSingleNode("Gearbox");
+                if (gearboxEl == null)
+                {
+                    ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' missing <Gearbox> — skipped.");
+                    return null;
+                }
+                var gearRatios = new Dictionary<int, float>();
+                foreach (XmlNode node in gearboxEl.SelectNodes("GearRatio"))
+                {
+                    XmlElement gearEl = (XmlElement)node;
+                    int gear; float ratio;
+                    if (int.TryParse(gearEl.GetAttribute("gear"), out gear) &&
+                        float.TryParse(gearEl.GetAttribute("ratio"), ns, ic, out ratio))
+                        gearRatios[gear] = ratio;
+                    else
+                        ModConsole.Error("MyMWCMod1: <GearRatio> for '" + goName + "' invalid gear/ratio — skipped.");
+                }
+                if (gearRatios.Count == 0)
+                {
+                    ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' has no valid gear ratios — skipped.");
+                    return null;
+                }
+                return gearRatios;
+            }
+
+            private static System.Reflection.FieldInfo[] ResolveFields(Type dt, string goName)
+            {
+                var bf = System.Reflection.BindingFlags.Public   |
+                         System.Reflection.BindingFlags.NonPublic |
+                         System.Reflection.BindingFlags.Instance;
+                string[] names = { "engineAngularVelo", "differentialSpeed", "gear", "netTorque",
+                                    "finalDriveRatio",   "torque",            "frictionTorque", "throttle" };
+                var fields = new System.Reflection.FieldInfo[names.Length];
+                for (int i = 0; i < names.Length; i++)
+                {
+                    fields[i] = dt.GetField(names[i], bf);
+                    if (fields[i] != null) continue;
+                    ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' could not resolve field '" + names[i] + "' — skipped.");
+                    return null;
+                }
+                return fields;
             }
 
             private void Apply()
