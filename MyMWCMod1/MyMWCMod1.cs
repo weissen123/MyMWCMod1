@@ -106,6 +106,7 @@ namespace MyMWCMod1
 
             private static readonly List<ComponentMonitor> _instances = new List<ComponentMonitor>();
 
+            public static void Reset() { _instances.Clear(); }
             public static void Add(ComponentMonitor monitor) { _instances.Add(monitor); }
 
             public static void ApplyAll()
@@ -128,6 +129,7 @@ namespace MyMWCMod1
             private static FsmString                        _vehicleString;
             private static string                           _xmlPath;
 
+            public static void Reset() { _configs.Clear(); }
             public static void Add(PivotResetConfig config) { _configs.Add(config); }
 
             public static void Init(string xmlPath)
@@ -226,7 +228,14 @@ namespace MyMWCMod1
 
         private class DrivetrainMonitor
         {
-            private class ConditionRef
+            private interface ICondition
+            {
+                bool   IsResolved { get; }
+                string LogPrefix  { get; } // e.g. "canStall.Condition 'ElectricsOK'"
+                bool   Evaluate();
+            }
+
+            private class FsmBoolCondition : ICondition
             {
                 private readonly string _path;
                 private readonly string _fsmName;
@@ -240,12 +249,13 @@ namespace MyMWCMod1
                 private FsmBool      _resolved;       // set once FsmVariables lookup succeeds
                 private float        _nextRetryTime;  // default 0f → first call always attempts
 
-                public ConditionRef(string path, string fsmName, string varName, string logLabel)
+                public FsmBoolCondition(string path, string fsmName, string varName, string logLabel)
                 {
                     _path = path; _fsmName = fsmName; _varName = varName; _logLabel = logLabel;
                 }
 
-                public bool IsResolved => _resolved != null;
+                public bool   IsResolved => _resolved != null;
+                public string LogPrefix  => _logLabel + " '" + _varName + "'";
 
                 public bool Evaluate()
                 {
@@ -286,11 +296,72 @@ namespace MyMWCMod1
                 }
             }
 
+            private class ComponentFloatCondition : ICondition
+            {
+                private readonly string _path;
+                private readonly string _compName;
+                private readonly string _fieldName;
+                private readonly float  _minFloat;
+                private readonly string _logLabel;
+
+                private const float RetryInterval = 1f;
+
+                private Component                   _cachedComp;
+                private System.Reflection.FieldInfo _cachedField;
+                private float                       _nextRetryTime;
+
+                public ComponentFloatCondition(string path, string compName, string fieldName, float minFloat, string logLabel)
+                {
+                    _path = path; _compName = compName; _fieldName = fieldName; _minFloat = minFloat; _logLabel = logLabel;
+                }
+
+                public bool   IsResolved => _cachedField != null;
+                public string LogPrefix  => _logLabel + " '" + _fieldName + "'";
+
+                public bool Evaluate()
+                {
+                    // Hot path: field already cached
+                    if (_cachedField != null) return (float)_cachedField.GetValue(_cachedComp) >= _minFloat;
+
+                    // Rate-limit retries to once per second
+                    if (UnityEngine.Time.fixedTime < _nextRetryTime) return false;
+                    _nextRetryTime = UnityEngine.Time.fixedTime + RetryInterval;
+
+                    // Stage 1: find the GameObject and component
+                    if (_cachedComp == null)
+                    {
+                        GameObject go = GameObject.Find(_path);
+                        if (go == null) return false;
+                        _cachedComp = go.GetComponent(_compName);
+                        if (_cachedComp == null) return false;
+                    }
+
+                    // Stage 2: find the float field via reflection
+                    _cachedField = _cachedComp.GetType().GetField(
+                        _fieldName,
+                        System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                    if (_cachedField != null)
+                    {
+                        ModConsole.Log(_logLabel + " '" + _fieldName + "' resolved = " + (float)_cachedField.GetValue(_cachedComp));
+                        return (float)_cachedField.GetValue(_cachedComp) >= _minFloat;
+                    }
+
+                    return false;
+                }
+            }
+
             private class DrivetrainBoolSetting
             {
-                public SettingsCheckBox         Checkbox;
-                public Action<Drivetrain, bool> Setter;
-                public readonly List<ConditionRef> Conditions = new List<ConditionRef>(); // empty = always apply
+                public SettingsCheckBox          Checkbox;
+                public System.Reflection.FieldInfo Field;
+                public readonly List<ICondition> Conditions = new List<ICondition>(); // empty = always apply
+
+                public void Apply(Drivetrain drivetrain)
+                {
+                    foreach (ICondition c in Conditions)
+                        if (!c.Evaluate()) return;
+                    Field.SetValue(drivetrain, Checkbox.GetValue());
+                }
             }
 
             public string     Label;
@@ -298,22 +369,11 @@ namespace MyMWCMod1
             private readonly List<DrivetrainBoolSetting> BoolSettings = new List<DrivetrainBoolSetting>();
 
             private static readonly List<DrivetrainMonitor>                       _instances        = new List<DrivetrainMonitor>();
-            private static readonly Dictionary<string, SettingsCheckBox>          _checkboxSettings = new Dictionary<string, SettingsCheckBox>();
-            private static readonly Dictionary<string, SettingsSlider>            _sliderSettings   = new Dictionary<string, SettingsSlider>();
-            private static readonly Dictionary<string, Action<Drivetrain, bool>>  _boolSetters
-                = new Dictionary<string, Action<Drivetrain, bool>>
-                {
-                    { "autoTransmission", (d, v) => d.automatic = v },
-                    { "canStall",         (d, v) => d.canStall  = v },
-                };
-            private static readonly Dictionary<string, Action<Drivetrain, float>> _floatSetters
-                = new Dictionary<string, Action<Drivetrain, float>>
-                {
-                    { "shiftUpRPM",   (d, v) => d.shiftUpRPM   = v },
-                    { "shiftDownRPM", (d, v) => d.shiftDownRPM = v },
-                };
+            private static readonly Dictionary<string, SettingsCheckBox> _checkboxSettings = new Dictionary<string, SettingsCheckBox>();
+            private static readonly Dictionary<string, SettingsSlider>  _sliderSettings   = new Dictionary<string, SettingsSlider>();
 
-            public static void Add(DrivetrainMonitor monitor) { _instances.Add(monitor); }
+            public static void Reset() { _instances.Clear(); }
+            public static void Add(DrivetrainMonitor monitor) { if (monitor != null) _instances.Add(monitor); }
 
             public static void ApplyAll()
             {
@@ -380,65 +440,639 @@ namespace MyMWCMod1
                     if (type == "slider")   { monitor.ApplySliderSetting(s, id);   continue; }
                     if (type == "checkbox") { monitor.ApplyCheckboxSetting(s, id); continue; }
                 }
+                XmlElement statsEl = (XmlElement)drivetrainEl.SelectSingleNode("Statistics");
+                if (statsEl != null)
+                    DrivetrainStatisticsCollector.Add(
+                        DrivetrainStatisticsCollector.LoadFromXml(statsEl, drivetrain, label));
+
+                XmlElement tcEl = (XmlElement)drivetrainEl.SelectSingleNode("TorqueConverter");
+                if (tcEl != null)
+                    TorqueConverterSimulator.Add(
+                        TorqueConverterSimulator.XmlLoader.LoadFromXml(tcEl, drivetrain, label));
+
                 return monitor.BoolSettings.Count > 0 ? monitor : null;
             }
 
             public void Apply()
             {
                 foreach (DrivetrainBoolSetting s in BoolSettings)
-                {
-                    bool conditionMet = true;
-                    foreach (ConditionRef c in s.Conditions)
-                        if (!c.Evaluate()) { conditionMet = false; break; }
-                    if (conditionMet)
-                        s.Setter(Drivetrain, s.Checkbox.GetValue());
-                }
+                    s.Apply(Drivetrain);
+            }
+
+            private System.Reflection.FieldInfo ResolveField(string id)
+            {
+                System.Reflection.FieldInfo fi = Drivetrain.GetType().GetField(
+                    id,
+                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                if (fi == null)
+                    ModConsole.Error("MyMWCMod1: field '" + id + "' not found on Drivetrain.");
+                return fi;
             }
 
             private void ApplySliderSetting(XmlElement s, string id)
             {
-                SettingsSlider            slider;
-                Action<Drivetrain, float> setter;
-                if (_sliderSettings.TryGetValue(id, out slider) &&
-                    _floatSetters.TryGetValue(id, out setter))
-                    setter(Drivetrain, (float)slider.GetValue());
+                SettingsSlider slider;
+                if (!_sliderSettings.TryGetValue(id, out slider)) return;
+
+                System.Reflection.FieldInfo fi = ResolveField(id);
+                if (fi == null) return;
+
+                fi.SetValue(Drivetrain, (float)slider.GetValue());
             }
 
             private void ApplyCheckboxSetting(XmlElement s, string id)
             {
-                SettingsCheckBox         cb;
-                Action<Drivetrain, bool> setter;
-                if (!_checkboxSettings.TryGetValue(id, out cb) ||
-                    !_boolSetters.TryGetValue(id, out setter)) return;
+                SettingsCheckBox cb;
+                if (!_checkboxSettings.TryGetValue(id, out cb)) return;
+
+                System.Reflection.FieldInfo fi = ResolveField(id);
+                if (fi == null) return;
 
                 XmlNodeList condNodes = s.SelectNodes("Condition");
-                if (condNodes.Count == 0) { setter(Drivetrain, cb.GetValue()); return; }
+                if (condNodes.Count == 0) { fi.SetValue(Drivetrain, cb.GetValue()); return; }
 
-                BoolSettings.Add(BuildConditionedSetting(condNodes, id, cb, setter));
+                BoolSettings.Add(BuildConditionedSetting(condNodes, id, cb, fi));
             }
 
             private DrivetrainBoolSetting BuildConditionedSetting(XmlNodeList condNodes, string id,
-                SettingsCheckBox cb, Action<Drivetrain, bool> setter)
+                SettingsCheckBox cb, System.Reflection.FieldInfo field)
             {
-                DrivetrainBoolSetting boolSetting = new DrivetrainBoolSetting { Checkbox = cb, Setter = setter };
+                DrivetrainBoolSetting boolSetting = new DrivetrainBoolSetting { Checkbox = cb, Field = field };
                 foreach (XmlNode condNode in condNodes)
                 {
-                    XmlElement condEl   = (XmlElement)condNode;
-                    string     condPath = condEl.GetAttribute("path");
-                    string     condFsm  = condEl.GetAttribute("fsmName");
-                    string     condBool = condEl.GetAttribute("fsmBool");
-                    if (string.IsNullOrEmpty(condPath) || string.IsNullOrEmpty(condFsm) || string.IsNullOrEmpty(condBool))
-                    {
-                        ModConsole.Error($"MyMWCMod1: Condition for '{id}' is missing required attributes — condition skipped.");
-                        continue;
-                    }
-                    ConditionRef cond = new ConditionRef(condPath, condFsm, condBool, id + ".Condition");
+                    ICondition cond = BuildCondition((XmlElement)condNode, id);
+                    if (cond == null) continue;
                     cond.Evaluate();
                     if (!cond.IsResolved)
-                        ModConsole.Log($"MyMWCMod1: Condition '{condBool}' found at load — will retry at runtime.");
+                        ModConsole.Log(cond.LogPrefix + " not resolved at load — will retry at runtime.");
                     boolSetting.Conditions.Add(cond);
                 }
                 return boolSetting;
+            }
+
+            private static ICondition BuildCondition(XmlElement condEl, string id)
+            {
+                string path     = condEl.GetAttribute("path");
+                string varFloat = condEl.GetAttribute("varFloat");
+                string fsmBool  = condEl.GetAttribute("fsmBool");
+
+                if (!string.IsNullOrEmpty(varFloat)) return BuildComponentFloatCondition(condEl, path, id);
+                if (!string.IsNullOrEmpty(fsmBool))  return BuildFsmBoolCondition(condEl, path, id);
+
+                ModConsole.Error("MyMWCMod1: Condition for '" + id + "' has neither fsmBool nor varFloat — condition skipped.");
+                return null;
+            }
+
+            private static ICondition BuildFsmBoolCondition(XmlElement condEl, string path, string id)
+            {
+                string fsmName = condEl.GetAttribute("fsmName");
+                string fsmBool = condEl.GetAttribute("fsmBool");
+                if (string.IsNullOrEmpty(path) || string.IsNullOrEmpty(fsmName) || string.IsNullOrEmpty(fsmBool))
+                {
+                    ModConsole.Error("MyMWCMod1: FsmBool condition for '" + id + "' is missing required attributes — condition skipped.");
+                    return null;
+                }
+                return new FsmBoolCondition(path, fsmName, fsmBool, id + ".Condition");
+            }
+
+            private static ICondition BuildComponentFloatCondition(XmlElement condEl, string path, string id)
+            {
+                string compName = condEl.GetAttribute("CompName");
+                string varFloat = condEl.GetAttribute("varFloat");
+                string minStr   = condEl.GetAttribute("minFloat");
+                float  minFloat;
+                if (string.IsNullOrEmpty(path) || string.IsNullOrEmpty(compName) || string.IsNullOrEmpty(varFloat)
+                    || !float.TryParse(minStr, System.Globalization.NumberStyles.Float,
+                                       System.Globalization.CultureInfo.InvariantCulture, out minFloat))
+                {
+                    ModConsole.Error("MyMWCMod1: ComponentFloat condition for '" + id + "' is missing required attributes — condition skipped.");
+                    return null;
+                }
+                return new ComponentFloatCondition(path, compName, varFloat, minFloat, id + ".Condition");
+            }
+        }
+
+        private class DrivetrainStatisticsCollector
+        {
+            private string                        _goName;
+            private string                        _fileNameBase;
+            private KeyCode                       _keyCode;
+            private System.Reflection.FieldInfo[] _fields;
+            private string[]                      _fieldNames;
+            private System.Reflection.FieldInfo[] _liveFields;
+            private string[]                      _liveFieldNames;
+            private Drivetrain                    _drivetrain;
+
+            private bool          _collecting;
+            private float         _startTime;
+            private float         _nextCollectTime;
+            private StringBuilder _csv;
+            private GUIStyle      _overlayStyle;
+
+            private static readonly List<DrivetrainStatisticsCollector> _instances
+                = new List<DrivetrainStatisticsCollector>();
+
+            public static void Reset() { _instances.Clear(); }
+            public static void Add(DrivetrainStatisticsCollector c) { if (c != null) _instances.Add(c); }
+
+            public static void UpdateAll()  { foreach (DrivetrainStatisticsCollector c in _instances) c.CheckToggle(); }
+            public static void CollectAll() { foreach (DrivetrainStatisticsCollector c in _instances) c.Collect(); }
+            public static void DrawAll()    { foreach (DrivetrainStatisticsCollector c in _instances) c.DrawOverlay(); }
+
+            public static DrivetrainStatisticsCollector LoadFromXml(XmlElement statsEl, Drivetrain drivetrain, string goName)
+            {
+                string fileNameBase = statsEl.GetAttribute("fileName");
+                string keyCodeStr   = statsEl.GetAttribute("KeyCode");
+
+                if (string.IsNullOrEmpty(fileNameBase) || string.IsNullOrEmpty(keyCodeStr))
+                {
+                    ModConsole.Error("MyMWCMod1: <Statistics> for '" + goName + "' missing fileName or KeyCode — skipped.");
+                    return null;
+                }
+
+                KeyCode keyCode;
+                try { keyCode = (KeyCode)System.Enum.Parse(typeof(KeyCode), keyCodeStr, true); }
+                catch
+                {
+                    ModConsole.Error("MyMWCMod1: <Statistics> for '" + goName + "' invalid KeyCode '" + keyCodeStr + "' — skipped.");
+                    return null;
+                }
+
+                var fieldList     = new List<System.Reflection.FieldInfo>();
+                var nameList      = new List<string>();
+                var liveFieldList = new List<System.Reflection.FieldInfo>();
+                var liveNameList  = new List<string>();
+                foreach (XmlNode child in statsEl.ChildNodes)
+                {
+                    if (child.NodeType != XmlNodeType.Element) continue;
+                    XmlElement statEl   = (XmlElement)child;
+                    string     fieldName = statEl.GetAttribute("field");
+                    System.Reflection.FieldInfo fi = drivetrain.GetType().GetField(
+                        fieldName,
+                        System.Reflection.BindingFlags.Public   |
+                        System.Reflection.BindingFlags.NonPublic |
+                        System.Reflection.BindingFlags.Instance);
+                    if (fi == null)
+                    {
+                        ModConsole.Error("MyMWCMod1: <Statistics> field '" + fieldName + "' not found on Drivetrain for '" + goName + "' — skipped.");
+                        continue;
+                    }
+                    fieldList.Add(fi);
+                    nameList.Add(fieldName);
+                    if (!string.IsNullOrEmpty(statEl.GetAttribute("live")))
+                    {
+                        liveFieldList.Add(fi);
+                        liveNameList.Add(fieldName);
+                    }
+                }
+
+                if (fieldList.Count == 0)
+                {
+                    ModConsole.Error("MyMWCMod1: <Statistics> for '" + goName + "' has no valid fields — skipped.");
+                    return null;
+                }
+
+                return new DrivetrainStatisticsCollector
+                {
+                    _goName          = goName,
+                    _fileNameBase    = fileNameBase,
+                    _keyCode         = keyCode,
+                    _fields          = fieldList.ToArray(),
+                    _fieldNames      = nameList.ToArray(),
+                    _liveFields      = liveFieldList.ToArray(),
+                    _liveFieldNames  = liveNameList.ToArray(),
+                    _drivetrain      = drivetrain,
+                };
+            }
+
+            private void CheckToggle()
+            {
+                if (!Input.GetKeyDown(_keyCode)) return;
+                bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
+                if (ctrl) SaveAndReset();
+                else      ToggleOverlay();
+            }
+
+            private void ToggleOverlay()
+            {
+                if (_collecting) DiscardAndStop(); else StartCollecting();
+            }
+
+            private void StartCollecting()
+            {
+                _csv = new StringBuilder();
+                _csv.Append("Time(s)");
+                foreach (string n in _fieldNames) { _csv.Append(";"); _csv.Append(n); }
+                _csv.AppendLine();
+                _startTime        = Time.fixedTime;
+                _nextCollectTime  = 0f;
+                _collecting       = true;
+                ModConsole.Log("MyMWCMod1: Started collecting statistics for " + _goName + ".");
+            }
+
+            private void DiscardAndStop()
+            {
+                _collecting = false;
+                _csv        = null;
+                ModConsole.Log("MyMWCMod1: Statistics discarded for " + _goName + ".");
+            }
+
+            private void SaveAndReset()
+            {
+                if (!_collecting) return;
+                WriteCSV();
+                StartCollecting();
+            }
+
+            private void Collect()
+            {
+                if (!_collecting) return;
+                if (Time.fixedTime < _nextCollectTime) return;
+                _nextCollectTime = Time.fixedTime + 0.1f;
+                var ic = System.Globalization.CultureInfo.InvariantCulture;
+                _csv.Append((Time.fixedTime - _startTime).ToString("G", ic));
+                foreach (System.Reflection.FieldInfo fi in _fields)
+                {
+                    _csv.Append(";");
+                    _csv.Append(Convert.ToSingle(fi.GetValue(_drivetrain)).ToString("G", ic));
+                }
+                _csv.AppendLine();
+            }
+
+            private void WriteCSV()
+            {
+                string timestamp = System.DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                string fileName  = _fileNameBase + "_" + timestamp + ".csv";
+                File.WriteAllText(fileName, _csv.ToString());
+                ModConsole.Log("MyMWCMod1: Statistics written to " + fileName + ".");
+            }
+
+            private void DrawOverlay()
+            {
+                if (!_collecting) return;
+                if (_overlayStyle == null)
+                {
+                    _overlayStyle           = new GUIStyle(GUI.skin.label);
+                    _overlayStyle.alignment = TextAnchor.UpperCenter;
+                }
+                var ic = System.Globalization.CultureInfo.InvariantCulture;
+                var sb = new StringBuilder("Collecting statistics for " + _goName);
+                for (int i = 0; i < _liveFields.Length; i++)
+                {
+                    sb.Append("\n").Append(_liveFieldNames[i]).Append(": ")
+                      .Append(Convert.ToSingle(_liveFields[i].GetValue(_drivetrain)).ToString("F3", ic));
+                }
+                float height = 20f + _liveFields.Length * 20f;
+                GUI.Label(new Rect(0, 0, Screen.width, height), sb.ToString(), _overlayStyle);
+            }
+        }
+
+        private class TorqueConverterSimulator
+        {
+            public class DeferredFsmFloat
+            {
+                private readonly string _path;
+                private readonly string _fsmName;
+                private readonly string _varName;
+
+                private GameObject   _cachedGO;
+                private PlayMakerFSM _cachedFsm;
+                private FsmFloat     _resolved;
+
+                public bool  IsResolved => _resolved != null;
+                public float Value      => _resolved.Value;
+
+                public DeferredFsmFloat(string path, string fsmName, string varName)
+                {
+                    _path = path; _fsmName = fsmName; _varName = varName;
+                }
+
+                public void TryResolve()
+                {
+                    if (_resolved != null) return;
+
+                    if (_cachedGO == null)
+                    {
+                        _cachedGO = GameObject.Find(_path);
+                        if (_cachedGO == null) return;
+                    }
+
+                    if (_cachedFsm == null)
+                    {
+                        foreach (PlayMakerFSM fsm in _cachedGO.GetComponentsInChildren<PlayMakerFSM>())
+                        {
+                            if (fsm.FsmName == _fsmName) { _cachedFsm = fsm; break; }
+                        }
+                        if (_cachedFsm == null) return;
+                    }
+
+                    FsmFloat result = _cachedFsm.FsmVariables.FindFsmFloat(_varName);
+                    if (result != null)
+                    {
+                        _resolved = result;
+                        ModConsole.Log("MyMWCMod1: TC '" + _varName + "' resolved = " + result.Value);
+                    }
+                }
+            }
+
+            private string                 _goName;
+            private Drivetrain             _drivetrain;
+            private float                  _wStall;
+            private float                  _rStall;
+            private Dictionary<int, float> _gearRatios;
+
+            private System.Reflection.FieldInfo _fEngineAngularVelo;
+            private System.Reflection.FieldInfo _fDifferentialSpeed;
+            private System.Reflection.FieldInfo _fGear;
+            private System.Reflection.FieldInfo _fNetTorque;
+            private System.Reflection.FieldInfo _fFinalDriveRatio;
+            private System.Reflection.FieldInfo _fTorque;
+            private System.Reflection.FieldInfo _fFrictionTorque;
+            private System.Reflection.FieldInfo _fThrottle;
+
+            private DeferredFsmFloat _vehicleMass;
+            private DeferredFsmFloat _wheelRadius;
+
+            private bool    _writeBack;
+            private KeyCode _keyCode;
+            private bool  _initialized;
+            private int   _lastGear;
+            private float _omegaIn;
+            private float _omegaOut;
+            private float _lastThrottle;
+
+            private bool     _hasData;
+            private float    _lastNetTorque;
+            private float    _lastTOut;
+            private float    _lastNuRatio;
+            private float    _lastR;
+            private float    _lastOriginalFinalDriveRatio;
+            private float    _lastUpdatedFinalDriveRatio;
+            private float    _lastTDragFactor;
+            private float    _lastTDrag;
+            private float    _lastFrictionTorque;
+            private GUIStyle _overlayStyle;
+
+            private static readonly List<TorqueConverterSimulator> _instances
+                = new List<TorqueConverterSimulator>();
+
+            public static void Reset()     { _instances.Clear(); }
+            public static void Add(TorqueConverterSimulator s) { if (s != null) _instances.Add(s); }
+            public static void UpdateAll() { foreach (TorqueConverterSimulator s in _instances) s.CheckToggle(); }
+            public static void ApplyAll()  { foreach (TorqueConverterSimulator s in _instances) s.Apply(); }
+            public static void DrawAll()   { foreach (TorqueConverterSimulator s in _instances) s.DrawOverlay(); }
+
+            private void CheckToggle()
+            {
+                if (_keyCode == KeyCode.None) return;
+                if (!Input.GetKeyDown(_keyCode)) return;
+                _writeBack = !_writeBack;
+                ModConsole.Log("MyMWCMod1: TC mode for " + _goName + " → " + (_writeBack ? "on" : "display"));
+            }
+
+            public static class XmlLoader
+            {
+                public static TorqueConverterSimulator LoadFromXml(XmlElement el, Drivetrain drivetrain, string goName)
+                {
+                    bool writeBack;
+                    if (!ParseMode(el, goName, out writeBack)) return null;
+
+                    float wStall, rStall;
+                    if (!ParseStallParams(el, goName, out wStall, out rStall)) return null;
+
+                    KeyCode keyCode = ParseKeyCode(el, goName);
+
+                    DeferredFsmFloat vehicleMass = LoadDeferredFloat(el, "vehicleMass", goName);
+                    DeferredFsmFloat wheelRadius = LoadDeferredFloat(el, "wheelRadius", goName);
+                    if (vehicleMass == null || wheelRadius == null) return null;
+
+                    Dictionary<int, float> gearRatios = LoadGearRatios(el, goName);
+                    if (gearRatios == null) return null;
+
+                    string[] fieldNames = { "engineAngularVelo", "differentialSpeed", "gear", "netTorque",
+                                            "finalDriveRatio",   "torque",            "frictionTorque", "throttle" };
+                    Dictionary<string, System.Reflection.FieldInfo> fields = ResolveFields(drivetrain.GetType(), fieldNames, goName);
+                    if (fields == null) return null;
+
+                    return new TorqueConverterSimulator
+                    {
+                        _goName             = goName,
+                        _drivetrain         = drivetrain,
+                        _writeBack          = writeBack,
+                        _keyCode            = keyCode,
+                        _wStall             = wStall,
+                        _rStall             = rStall,
+                        _vehicleMass        = vehicleMass,
+                        _wheelRadius        = wheelRadius,
+                        _gearRatios         = gearRatios,
+                        _fEngineAngularVelo = fields["engineAngularVelo"],
+                        _fDifferentialSpeed = fields["differentialSpeed"],
+                        _fGear              = fields["gear"],
+                        _fNetTorque         = fields["netTorque"],
+                        _fFinalDriveRatio   = fields["finalDriveRatio"],
+                        _fTorque            = fields["torque"],
+                        _fFrictionTorque    = fields["frictionTorque"],
+                        _fThrottle          = fields["throttle"],
+                    };
+                }
+
+                public static bool ParseMode(XmlElement el, string goName, out bool writeBack)
+                {
+                    string mode = el.GetAttribute("mode");
+                    writeBack = mode == "on";
+                    return mode != "off";
+                }
+
+                public static bool ParseStallParams(XmlElement el, string goName, out float wStall, out float rStall)
+                {
+                    var ns = System.Globalization.NumberStyles.Float;
+                    var ic = System.Globalization.CultureInfo.InvariantCulture;
+                    float rpmStall;
+                    rStall = wStall = 0f;
+                    if (!float.TryParse(el.GetAttribute("RPMStall"), ns, ic, out rpmStall) ||
+                        !float.TryParse(el.GetAttribute("rStall"),   ns, ic, out rStall))
+                    {
+                        ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' missing or invalid RPMStall/rStall — skipped.");
+                        return false;
+                    }
+                    wStall = rpmStall * 2f * (float)Math.PI / 60f;
+                    return true;
+                }
+
+                public static KeyCode ParseKeyCode(XmlElement el, string goName)
+                {
+                    string str = el.GetAttribute("KeyCode");
+                    if (string.IsNullOrEmpty(str)) return KeyCode.None;
+                    try { return (KeyCode)System.Enum.Parse(typeof(KeyCode), str, true); }
+                    catch
+                    {
+                        ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' invalid KeyCode '" + str + "' — toggle disabled.");
+                        return KeyCode.None;
+                    }
+                }
+
+                public static DeferredFsmFloat LoadDeferredFloat(XmlElement el, string tag, string goName)
+                {
+                    XmlElement child = (XmlElement)el.SelectSingleNode(tag);
+                    if (child == null)
+                    {
+                        ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' missing <" + tag + "> — skipped.");
+                        return null;
+                    }
+                    DeferredFsmFloat result = new DeferredFsmFloat(
+                        child.GetAttribute("path"), child.GetAttribute("fsmName"), child.GetAttribute("fsmFloat"));
+                    result.TryResolve();
+                    return result;
+                }
+
+                public static Dictionary<int, float> LoadGearRatios(XmlElement el, string goName)
+                {
+                    var ns = System.Globalization.NumberStyles.Float;
+                    var ic = System.Globalization.CultureInfo.InvariantCulture;
+                    XmlElement gearboxEl = (XmlElement)el.SelectSingleNode("Gearbox");
+                    if (gearboxEl == null)
+                    {
+                        ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' missing <Gearbox> — skipped.");
+                        return null;
+                    }
+                    var gearRatios = new Dictionary<int, float>();
+                    foreach (XmlNode node in gearboxEl.SelectNodes("GearRatio"))
+                    {
+                        XmlElement gearEl = (XmlElement)node;
+                        int gear; float ratio;
+                        if (int.TryParse(gearEl.GetAttribute("gear"), out gear) &&
+                            float.TryParse(gearEl.GetAttribute("ratio"), ns, ic, out ratio))
+                            gearRatios[gear] = ratio;
+                        else
+                            ModConsole.Error("MyMWCMod1: <GearRatio> for '" + goName + "' invalid gear/ratio — skipped.");
+                    }
+                    if (gearRatios.Count == 0)
+                    {
+                        ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' has no valid gear ratios — skipped.");
+                        return null;
+                    }
+                    return gearRatios;
+                }
+
+                public static Dictionary<string, System.Reflection.FieldInfo> ResolveFields(Type dt, string[] names, string goName)
+                {
+                    var bf = System.Reflection.BindingFlags.Public   |
+                             System.Reflection.BindingFlags.NonPublic |
+                             System.Reflection.BindingFlags.Instance;
+                    var fields = new Dictionary<string, System.Reflection.FieldInfo>();
+                    foreach (string name in names)
+                    {
+                        System.Reflection.FieldInfo fi = dt.GetField(name, bf);
+                        if (fi == null)
+                        {
+                            ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' could not resolve field '" + name + "' — skipped.");
+                            return null;
+                        }
+                        fields[name] = fi;
+                    }
+                    return fields;
+                }
+            } // XmlLoader
+
+            private void Apply()
+            {
+                _hasData = false;
+
+                int   gear;
+                float baseRatio;
+                gear = (int)_fGear.GetValue(_drivetrain);
+                if (!_gearRatios.TryGetValue(gear, out baseRatio)) { _initialized = false; return; }
+
+                float wInGame = (float)_fEngineAngularVelo.GetValue(_drivetrain);
+                if (wInGame <= 0f) { _initialized = false; return; }
+                _omegaIn = wInGame;
+
+                float diffSpeed = (float)_fDifferentialSpeed.GetValue(_drivetrain);
+                float throttle  = (float)_fThrottle.GetValue(_drivetrain);
+                if (!_initialized)
+                {
+                    _omegaOut     = Math.Max(0.01f, diffSpeed * baseRatio);
+                    _lastGear     = gear;
+                    _lastThrottle = throttle;
+                    _initialized  = true;
+                }
+                else if (gear != _lastGear)
+                {
+                    _omegaOut = Math.Max(0.01f, diffSpeed * baseRatio);
+                    _lastGear = gear;
+                }
+                _lastThrottle = throttle;
+
+                float torque         = (float)_fTorque.GetValue(_drivetrain);
+                float netTorque      = (float)_fNetTorque.GetValue(_drivetrain);
+                float frictionTorque = (float)_fFrictionTorque.GetValue(_drivetrain);
+                float origFdr        = (float)_fFinalDriveRatio.GetValue(_drivetrain);
+
+                float nu       = Math.Max(0.01f, _omegaOut) / Math.Max(0.01f, _omegaIn);
+                float wRatio   = _omegaIn / _wStall;
+                float tDrag    = torque * wRatio * wRatio * (1f - nu);
+                float R        = nu < 0.9f ? _rStall - (_rStall - 1f) * (nu / 0.9f) : 1.0f;
+                float tOut     = tDrag * R;
+                _vehicleMass.TryResolve();
+                _wheelRadius.TryResolve();
+                bool  tcActive = throttle >= 0.15f && (throttle - _lastThrottle) > -0.05f && R >= 1.05f
+                                 && _vehicleMass.IsResolved && _wheelRadius.IsResolved;
+
+                if (_writeBack && tcActive)
+                {
+                    float r    = _wheelRadius.Value;
+                    float iEff = _vehicleMass.Value * r * r / (baseRatio * baseRatio);
+                    float dt   = UnityEngine.Time.fixedDeltaTime;
+                    _omegaOut += tOut / iEff * dt;
+                    _omegaOut  = Math.Max(0.01f, _omegaOut);
+                }
+                else
+                {
+                    _omegaOut = Math.Max(0.01f, diffSpeed * baseRatio);
+                }
+
+                float nuNew = _omegaOut / Math.Max(0.01f, _omegaIn);
+                if (_writeBack && tcActive)
+                {
+                    _fDifferentialSpeed.SetValue(_drivetrain, _omegaOut / baseRatio);
+                    _fFinalDriveRatio.SetValue(  _drivetrain, baseRatio / nuNew);
+                    _fNetTorque.SetValue(        _drivetrain, tOut * nuNew);
+                    _fFrictionTorque.SetValue(   _drivetrain, torque - tOut * nuNew);
+                }
+
+                _lastOriginalFinalDriveRatio = origFdr;
+                _lastUpdatedFinalDriveRatio  = baseRatio / nuNew;
+                _lastNetTorque               = netTorque;
+                _lastFrictionTorque          = frictionTorque;
+                _lastNuRatio                 = _omegaIn / _omegaOut;
+                _lastR                       = R;
+                _lastTDragFactor             = wRatio * wRatio * (1f - nu);
+                _lastTDrag                   = tDrag;
+                _lastTOut                    = tOut;
+                _hasData                     = true;
+            }
+
+            private void DrawOverlay()
+            {
+                if (!_hasData) return;
+                if (_overlayStyle == null)
+                {
+                    _overlayStyle           = new GUIStyle(GUI.skin.label);
+                    _overlayStyle.alignment = TextAnchor.UpperLeft;
+                }
+                var ic = System.Globalization.CultureInfo.InvariantCulture;
+                string text = _goName + " TC, mode: " + (_writeBack ? "on" : "display")
+                    + "\nGear " + _lastGear + ", throttle: " + _lastThrottle.ToString("F3", ic) + ":"
+                    + "\nnetTorque: "     + _lastNetTorque.ToString("F2", ic)
+                    + "  T_out: "         + _lastTOut.ToString("F2", ic)
+                    + "\nfrictionTorque: " + _lastFrictionTorque.ToString("F2", ic)
+                    + "  T_drag: "         + _lastTDrag.ToString("F2", ic)
+                    + "\nω_in/ω_out: "    + _lastNuRatio.ToString("F3", ic)
+                    + "  R(ν): "          + _lastR.ToString("F3", ic)
+                    + "\nfinalDriveRatio: " + _lastOriginalFinalDriveRatio.ToString("F4", ic)
+                    + "  → "              + _lastUpdatedFinalDriveRatio.ToString("F4", ic)
+                    + "\n(ω_in/ω_stall)²×(1−ν): " + _lastTDragFactor.ToString("F4", ic);
+                GUI.Label(new Rect(10, 10, 500, 140), text, _overlayStyle);
             }
         }
 
@@ -497,17 +1131,57 @@ namespace MyMWCMod1
                     csv.AppendLine(safePath + ";" + safeFsm + ";Bool;\"" + bv.Name + "\";" + bv.Value);
             }
 
-            private static string GetGameObjectPath(GameObject obj)
+        }
+
+        private class DrivetrainCsvDumper
+        {
+            public static void Dump(string rootName)
             {
-                string path = obj.name;
-                Transform t = obj.transform;
-                while (t.parent != null)
-                {
-                    t = t.parent;
-                    path = t.name + "/" + path;
-                }
-                return path;
+                GameObject root = GameObject.Find(rootName);
+                if (root == null) { ModConsole.Error("[MWC Dumper] Could not find " + rootName); return; }
+
+                StringBuilder csv = new StringBuilder();
+                csv.AppendLine("GameObject Path;Field Name;Field Type;Access;Scope;Value");
+
+                foreach (Drivetrain dt in root.GetComponentsInChildren<Drivetrain>())
+                    AppendRows(csv, dt);
+
+                string fileName = "MWC_Drivetrain_Dump_" + rootName.Replace("/", "_") + ".csv";
+                File.WriteAllText(fileName, csv.ToString());
+                ModConsole.Log("Dump complete: " + fileName + " saved to game folder.");
             }
+
+            private static void AppendRows(StringBuilder csv, Drivetrain dt)
+            {
+                string path = "\"" + GetGameObjectPath(dt.gameObject) + "\"";
+                foreach (System.Reflection.FieldInfo fi in dt.GetType().GetFields(
+                    System.Reflection.BindingFlags.Public    |
+                    System.Reflection.BindingFlags.NonPublic |
+                    System.Reflection.BindingFlags.Instance  |
+                    System.Reflection.BindingFlags.Static))
+                {
+                    string access = fi.IsPublic           ? "Public"            :
+                                    fi.IsPrivate          ? "Private"           :
+                                    fi.IsFamily           ? "Protected"         :
+                                    fi.IsAssembly         ? "Internal"          :
+                                                            "ProtectedInternal";
+                    string scope = fi.IsStatic ? "Static" : "Instance";
+                    object val   = fi.GetValue(dt);
+                    csv.AppendLine(path + ";\"" + fi.Name + "\";" + fi.FieldType.Name + ";" + access + ";" + scope + ";" + val);
+                }
+            }
+        }
+
+        private static string GetGameObjectPath(GameObject obj)
+        {
+            string path = obj.name;
+            Transform t = obj.transform;
+            while (t.parent != null)
+            {
+                t = t.parent;
+                path = t.name + "/" + path;
+            }
+            return path;
         }
 
         private SettingsKeybind _pivotResetKey;
@@ -519,6 +1193,7 @@ namespace MyMWCMod1
             SetupFunction(Setup.Update, Mod_Update);
             SetupFunction(Setup.FixedUpdate, Mod_FixedUpdate);
             SetupFunction(Setup.ModSettings, Mod_Settings);
+            SetupFunction(Setup.OnGUI, Mod_OnGUI);
         }
 
         private void Mod_Settings()
@@ -527,8 +1202,10 @@ namespace MyMWCMod1
             DrivetrainMonitor.RegisterSettings(XmlPath);
             _pivotResetKey = Keybind.Add("pivotReset", "Reset Player Pivot", KeyCode.Backslash);
             _pivotSaveKey  = Keybind.Add("savePivot",  "Save Player Pivot",  KeyCode.Backslash, KeyCode.LeftControl);
-            Settings.AddButton("Dump CORRIS FSM to CSV",    () => GameObjectCsvDumper.Dump("CORRIS"));
-            Settings.AddButton("Dump BACHGLOTZ FSM to CSV", () => GameObjectCsvDumper.Dump("BACHGLOTZ(1905kg)"));
+            Settings.AddButton("Dump CORRIS FSM to CSV",         () => GameObjectCsvDumper.Dump("CORRIS"));
+            Settings.AddButton("Dump BACHGLOTZ FSM to CSV",      () => GameObjectCsvDumper.Dump("BACHGLOTZ(1905kg)"));
+            Settings.AddButton("Dump CORRIS Drivetrain to CSV",   () => DrivetrainCsvDumper.Dump("CORRIS"));
+            Settings.AddButton("Dump MACHTWAGEN Drivetrain to CSV", () => DrivetrainCsvDumper.Dump("JOBS/TAXIJOB/MACHTWAGEN"));
         }
 
         private void EnsureXmlExists()
@@ -549,6 +1226,8 @@ namespace MyMWCMod1
 
         private void Mod_Update()
         {
+            TorqueConverterSimulator.UpdateAll();
+            DrivetrainStatisticsCollector.UpdateAll();
             if (_pivotSaveKey.GetKeybindDown())  { PivotResetConfig.SaveCurrentPivot();  return; }
             if (_pivotResetKey.GetKeybindDown()) { PivotResetConfig.ResetCurrentPivot(); return; }
         }
@@ -557,10 +1236,23 @@ namespace MyMWCMod1
         {
             ComponentMonitor.ApplyAll();
             DrivetrainMonitor.ApplyAll();
+            TorqueConverterSimulator.ApplyAll();
+            DrivetrainStatisticsCollector.CollectAll();
+        }
+
+        private void Mod_OnGUI()
+        {
+            DrivetrainStatisticsCollector.DrawAll();
+            TorqueConverterSimulator.DrawAll();
         }
 
         private void SetupMonitors()
         {
+            ComponentMonitor.Reset();
+            DrivetrainMonitor.Reset();
+            DrivetrainStatisticsCollector.Reset();
+            TorqueConverterSimulator.Reset();
+            PivotResetConfig.Reset();
             string xmlPath = XmlPath;
             EnsureXmlExists();
             XmlDocument doc = new XmlDocument();
@@ -578,13 +1270,16 @@ namespace MyMWCMod1
                 bool isContainer = false;
 
                 XmlElement pivotEl = (XmlElement)el.SelectSingleNode("PivotReset");
-                if (pivotEl != null) { PivotResetConfig.Add(PivotResetConfig.LoadFromXml(pivotEl)); isContainer = true; }
+                if (pivotEl != null)
+                {
+                    PivotResetConfig.Add(PivotResetConfig.LoadFromXml(pivotEl));
+                    isContainer = true;
+                }
 
                 XmlElement drivetrainEl = (XmlElement)el.SelectSingleNode("Drivetrain");
                 if (drivetrainEl != null)
                 {
-                    DrivetrainMonitor dtMonitor = DrivetrainMonitor.LoadFromXml(goPath, label, drivetrainEl);
-                    if (dtMonitor != null) DrivetrainMonitor.Add(dtMonitor);
+                    DrivetrainMonitor.Add(DrivetrainMonitor.LoadFromXml(goPath, label, drivetrainEl));
                     isContainer = true;
                 }
 
@@ -627,7 +1322,7 @@ namespace MyMWCMod1
 
   <Monitor label=""MACHTWAGEN"" path=""JOBS/TAXIJOB/MACHTWAGEN"">
     <Drivetrain>
-      <Setting id=""autoTransmission"" type=""checkbox"" label=""Automated Manual Transmission (AMT)"" default=""true"" />
+      <Setting id=""automatic"" type=""checkbox"" label=""Automated Manual Transmission (AMT)"" default=""true"" />
       <Setting id=""shiftUpRPM""       type=""slider""   label=""Shift Up RPM""                        min=""1000"" max=""8000"" default=""3500"" />
       <Setting id=""shiftDownRPM""     type=""slider""   label=""Shift Down RPM""                      min=""500""  max=""7000"" default=""1700"" />
     </Drivetrain>
@@ -643,7 +1338,34 @@ namespace MyMWCMod1
         <Condition fsmName=""Power""     fsmBool=""ElectricsOK""  path=""CORRIS/Simulation/Electricity"" />
         <Condition fsmName=""FuelLine""  fsmBool=""FuelOK""       path=""CORRIS/Simulation/Engine/Fuel"" />
         <Condition fsmName=""Cylinders"" fsmBool=""CombustionOK"" path=""CORRIS/Simulation/Engine/Combustion"" />
+        <Condition path=""CORRIS"" CompName=""Drivetrain"" varFloat=""rpm"" minFloat=""400"" />
       </Setting>
+      <Statistics fileName=""MWC_Drivetrain_Stat_CORRIS"" KeyCode=""KeypadDivide"">
+        <Statistic field=""gear"" />
+        <Statistic field=""throttle"" />
+        <Statistic field=""rpm""                live=""X"" />
+        <Statistic field=""engineAngularVelo""  live=""X"" />
+        <Statistic field=""clutchSpeed""        live=""X"" />
+        <Statistic field=""differentialSpeed""  live=""X"" />
+        <Statistic field=""finalDriveRatio""    live=""X"" />
+        <Statistic field=""torque""             live=""X"" />
+        <Statistic field=""frictionTorque""     live=""X"" />
+        <Statistic field=""netTorque""          live=""X"" />
+        <Statistic field=""velo"" />
+        <Statistic field=""wheelTireVelo"" />
+        <Statistic field=""slipRatio"" />
+        <Statistic field=""currentPower"" />
+        <Statistic field=""powerMultiplier"" />
+      </Statistics>
+      <TorqueConverter mode=""on"" KeyCode=""KeypadEnter"" RPMStall=""2000"" rStall=""2"">
+        <vehicleMass path=""CORRIS/Simulation/CarData"" fsmName=""GetWeight"" fsmFloat=""Mass"" />
+        <wheelRadius path=""CORRIS/PhysicalAssemblies/REAR/AxleDamagePivot/RearWheelsStatic/WHEELc_RL/tire/VINP_WheelRL"" fsmName=""Data"" fsmFloat=""TireRadius"" />
+        <Gearbox>
+          <GearRatio gear=""2"" ratio=""10.6116"" />
+          <GearRatio gear=""3"" ratio=""6.438"" />
+          <GearRatio gear=""4"" ratio=""4.44"" />
+        </Gearbox>
+      </TorqueConverter>
     </Drivetrain>
     <PivotReset vehicleName=""Corris""
       playerPath=""CORRIS/Functions/DriverHeadPivot/CameraPivotPLR/SeatPivot/PLAYER""
