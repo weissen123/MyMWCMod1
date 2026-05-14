@@ -248,23 +248,6 @@ namespace MyMWCMod1
                 return null;
             }
 
-            public static PivotResetConfig LoadFromXml(XmlElement pivotEl)
-            {
-                return new PivotResetConfig
-                {
-                    VehicleName      = pivotEl.GetAttribute("vehicleName"),
-                    GameObjectPath   = pivotEl.GetAttribute("playerPath"),
-                    LocalPosition    = new Vector3(
-                        XmlAttr.Float(pivotEl, "posX", 0f),
-                        XmlAttr.Float(pivotEl, "posY", 0f),
-                        XmlAttr.Float(pivotEl, "posZ", 0f)),
-                    LocalEulerAngles = new Vector3(
-                        XmlAttr.Float(pivotEl, "rotX", 0f),
-                        XmlAttr.Float(pivotEl, "rotY", 0f),
-                        XmlAttr.Float(pivotEl, "rotZ", 0f)),
-                };
-            }
-
             private void WriteToXml()
             {
                 XmlDocument doc = new XmlDocument();
@@ -295,6 +278,26 @@ namespace MyMWCMod1
                 }
 
                 ModConsole.Error("MyMWCMod1: <PivotReset vehicleName=\"" + VehicleName + "\"> not found in XML.");
+            }
+
+            public static class XmlLoader
+            {
+                public static PivotResetConfig LoadFromXml(XmlElement pivotEl)
+                {
+                    return new PivotResetConfig
+                    {
+                        VehicleName      = pivotEl.GetAttribute("vehicleName"),
+                        GameObjectPath   = pivotEl.GetAttribute("playerPath"),
+                        LocalPosition    = new Vector3(
+                            XmlAttr.Float(pivotEl, "posX", 0f),
+                            XmlAttr.Float(pivotEl, "posY", 0f),
+                            XmlAttr.Float(pivotEl, "posZ", 0f)),
+                        LocalEulerAngles = new Vector3(
+                            XmlAttr.Float(pivotEl, "rotX", 0f),
+                            XmlAttr.Float(pivotEl, "rotY", 0f),
+                            XmlAttr.Float(pivotEl, "rotZ", 0f)),
+                    };
+                }
             }
         }
 
@@ -1253,7 +1256,7 @@ namespace MyMWCMod1
                 XmlElement pivotEl = (XmlElement)el.SelectSingleNode("PivotReset");
                 if (pivotEl != null)
                 {
-                    PivotResetConfig pivot = PivotResetConfig.LoadFromXml(pivotEl);
+                    PivotResetConfig pivot = PivotResetConfig.XmlLoader.LoadFromXml(pivotEl);
                     PivotResetConfig.Add(pivot);
                     if (pivot != null) pivotCount++;
                     isContainer = true;
