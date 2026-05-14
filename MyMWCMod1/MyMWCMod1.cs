@@ -766,11 +766,28 @@ namespace MyMWCMod1
                 public void  TryResolve() { _lookup.TryResolve(); }
             }
 
-            private string                 _goName;
-            private Drivetrain             _drivetrain;
-            private float                  _wStall;
-            private float                  _rStall;
-            private Dictionary<int, float> _gearRatios;
+            public class GearEntry
+            {
+                public float            Fallback;
+                public DeferredFsmFloat FsmRatio;
+                public bool?            WriteBackOverride;
+
+                public float ResolveRatio()
+                {
+                    if (FsmRatio != null)
+                    {
+                        FsmRatio.TryResolve();
+                        if (FsmRatio.IsResolved) return FsmRatio.Value;
+                    }
+                    return Fallback;
+                }
+            }
+
+            private string                     _goName;
+            private Drivetrain                 _drivetrain;
+            private float                      _wStall;
+            private float                      _rStall;
+            private Dictionary<int, GearEntry> _gearEntries;
 
             private System.Reflection.FieldInfo _fEngineAngularVelo;
             private System.Reflection.FieldInfo _fDifferentialSpeed;
@@ -783,6 +800,7 @@ namespace MyMWCMod1
 
             private DeferredFsmFloat _vehicleMass;
             private DeferredFsmFloat _wheelRadius;
+            private DeferredFsmFloat _finalGear;
 
             private bool    _writeBack;
             private KeyCode _keyCode;
@@ -793,6 +811,10 @@ namespace MyMWCMod1
             private float _lastThrottle;
 
             private bool     _hasData;
+            private bool     _lastWriteBack;
+            private float    _lastGearRatio;
+            private float    _lastFinalGear;
+            private float    _lastEffectiveRatio;
             private float    _lastNetTorque;
             private float    _lastTOut;
             private float    _lastInOutRatio;
@@ -837,8 +859,10 @@ namespace MyMWCMod1
                     DeferredFsmFloat wheelRadius = LoadDeferredFloat(el, "wheelRadius", goName);
                     if (vehicleMass == null || wheelRadius == null) return null;
 
-                    Dictionary<int, float> gearRatios = LoadGearRatios(el, goName);
-                    if (gearRatios == null) return null;
+                    DeferredFsmFloat finalGear = LoadOptionalDeferredFloat(el, "RearAxle", goName);
+
+                    Dictionary<int, GearEntry> gearEntries = LoadGearEntries(el, goName);
+                    if (gearEntries == null) return null;
 
                     return new TorqueConverterSimulator
                     {
@@ -850,7 +874,8 @@ namespace MyMWCMod1
                         _rStall             = rStall,
                         _vehicleMass        = vehicleMass,
                         _wheelRadius        = wheelRadius,
-                        _gearRatios         = gearRatios,
+                        _finalGear          = finalGear,
+                        _gearEntries        = gearEntries,
                         _fEngineAngularVelo = ResolveField(drivetrain, "engineAngularVelo", goName),
                         _fDifferentialSpeed = ResolveField(drivetrain, "differentialSpeed", goName),
                         _fGear              = ResolveField(drivetrain, "gear",              goName),
@@ -908,7 +933,24 @@ namespace MyMWCMod1
                     return result;
                 }
 
-                public static Dictionary<int, float> LoadGearRatios(XmlElement el, string goName)
+                public static DeferredFsmFloat LoadOptionalDeferredFloat(XmlElement el, string tag, string goName)
+                {
+                    XmlElement child = (XmlElement)el.SelectSingleNode(tag);
+                    if (child == null) return null;
+                    string path = child.GetAttribute("path");
+                    string fsmName = child.GetAttribute("fsmName");
+                    string fsmFloat = child.GetAttribute("fsmFloat");
+                    if (string.IsNullOrEmpty(path) || string.IsNullOrEmpty(fsmName) || string.IsNullOrEmpty(fsmFloat))
+                    {
+                        ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' <" + tag + "> missing path/fsmName/fsmFloat — ignored.");
+                        return null;
+                    }
+                    DeferredFsmFloat result = new DeferredFsmFloat(path, fsmName, fsmFloat);
+                    result.TryResolve();
+                    return result;
+                }
+
+                public static Dictionary<int, GearEntry> LoadGearEntries(XmlElement el, string goName)
                 {
                     XmlElement gearboxEl = (XmlElement)el.SelectSingleNode("Gearbox");
                     if (gearboxEl == null)
@@ -916,23 +958,47 @@ namespace MyMWCMod1
                         ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' missing <Gearbox> — skipped.");
                         return null;
                     }
-                    var gearRatios = new Dictionary<int, float>();
+                    string gearboxPath    = gearboxEl.GetAttribute("path");
+                    string gearboxFsmName = gearboxEl.GetAttribute("fsmName");
+                    bool   gearboxHasFsm  = !string.IsNullOrEmpty(gearboxPath) && !string.IsNullOrEmpty(gearboxFsmName);
+
+                    var entries = new Dictionary<int, GearEntry>();
                     foreach (XmlNode node in gearboxEl.SelectNodes("GearRatio"))
                     {
                         XmlElement gearEl = (XmlElement)node;
                         int gear; float ratio;
-                        if (XmlAttr.TryInt(gearEl, "gear", out gear) &&
-                            XmlAttr.TryFloat(gearEl, "ratio", out ratio))
-                            gearRatios[gear] = ratio;
-                        else
+                        if (!XmlAttr.TryInt(gearEl, "gear", out gear) ||
+                            !XmlAttr.TryFloat(gearEl, "ratio", out ratio))
+                        {
                             ModConsole.Error("MyMWCMod1: <GearRatio> for '" + goName + "' invalid gear/ratio — skipped.");
+                            continue;
+                        }
+
+                        GearEntry entry = new GearEntry { Fallback = ratio };
+
+                        string fsmFloat = gearEl.GetAttribute("fsmFloat");
+                        if (gearboxHasFsm && !string.IsNullOrEmpty(fsmFloat))
+                        {
+                            entry.FsmRatio = new DeferredFsmFloat(gearboxPath, gearboxFsmName, fsmFloat);
+                            entry.FsmRatio.TryResolve();
+                        }
+
+                        string mode = gearEl.GetAttribute("mode");
+                        if (!string.IsNullOrEmpty(mode))
+                        {
+                            if      (mode == "on")      entry.WriteBackOverride = true;
+                            else if (mode == "display") entry.WriteBackOverride = false;
+                            else ModConsole.Error("MyMWCMod1: <GearRatio gear=\"" + gear + "\"> for '" + goName + "' invalid mode '" + mode + "' — inherited.");
+                        }
+
+                        entries[gear] = entry;
                     }
-                    if (gearRatios.Count == 0)
+                    if (entries.Count == 0)
                     {
                         ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' has no valid gear ratios — skipped.");
                         return null;
                     }
-                    return gearRatios;
+                    return entries;
                 }
 
                 public static System.Reflection.FieldInfo ResolveField(Drivetrain drivetrain, string name, string goName)
@@ -946,10 +1012,19 @@ namespace MyMWCMod1
             {
                 _hasData = false;
 
-                int   gear;
-                float baseRatio;
-                gear = (int)_fGear.GetValue(_drivetrain);
-                if (!_gearRatios.TryGetValue(gear, out baseRatio)) { _initialized = false; return; }
+                int       gear  = (int)_fGear.GetValue(_drivetrain);
+                GearEntry entry;
+                if (!_gearEntries.TryGetValue(gear, out entry)) { _initialized = false; return; }
+
+                float gearRatio = entry.ResolveRatio();
+                float finalGear = 1f;
+                if (_finalGear != null)
+                {
+                    _finalGear.TryResolve();
+                    if (_finalGear.IsResolved) finalGear = _finalGear.Value;
+                }
+                float baseRatio = gearRatio * finalGear;
+                bool  writeBack = entry.WriteBackOverride.HasValue ? entry.WriteBackOverride.Value : _writeBack;
 
                 float wInGame = (float)_fEngineAngularVelo.GetValue(_drivetrain);
                 if (wInGame <= 0f) { _initialized = false; return; }
@@ -988,7 +1063,7 @@ namespace MyMWCMod1
                                  && R >= MinEngageRatio
                                  && _vehicleMass.IsResolved && _wheelRadius.IsResolved;
 
-                if (_writeBack && tcActive)
+                if (writeBack && tcActive)
                 {
                     float r    = _wheelRadius.Value;
                     float iEff = _vehicleMass.Value * r * r / (baseRatio * baseRatio);
@@ -1002,7 +1077,7 @@ namespace MyMWCMod1
                 }
 
                 float nuNew = _omegaOut / Math.Max(OmegaFloor, _omegaIn);
-                if (_writeBack && tcActive)
+                if (writeBack && tcActive)
                 {
                     _fDifferentialSpeed.SetValue(_drivetrain, _omegaOut / baseRatio);
                     _fFinalDriveRatio.SetValue(  _drivetrain, baseRatio / nuNew);
@@ -1010,11 +1085,15 @@ namespace MyMWCMod1
                     _fFrictionTorque.SetValue(   _drivetrain, torque - tOut * nuNew);
                 }
 
+                _lastWriteBack               = writeBack;
+                _lastGearRatio               = gearRatio;
+                _lastFinalGear               = finalGear;
+                _lastEffectiveRatio          = baseRatio;
                 _lastOriginalFinalDriveRatio = origFdr;
                 _lastUpdatedFinalDriveRatio  = baseRatio / nuNew;
                 _lastNetTorque               = netTorque;
                 _lastFrictionTorque          = frictionTorque;
-                _lastInOutRatio                 = _omegaIn / _omegaOut;
+                _lastInOutRatio              = _omegaIn / _omegaOut;
                 _lastR                       = R;
                 _lastTDragFactor             = wRatio * wRatio * (1f - nu);
                 _lastTDrag                   = tDrag;
@@ -1032,7 +1111,12 @@ namespace MyMWCMod1
                 }
                 var ic = System.Globalization.CultureInfo.InvariantCulture;
                 string text = _goName + " TC, mode: " + (_writeBack ? "on" : "display")
-                    + "\nGear " + _lastGear + ", throttle: " + _lastThrottle.ToString("F3", ic) + ":"
+                    + "\nGear " + _lastGear + ", throttle: " + _lastThrottle.ToString("F3", ic)
+                    + "  (gear mode: " + (_lastWriteBack ? "on" : "display") + ")"
+                    + "\ngearRatio × finalGear = effective: "
+                        + _lastGearRatio.ToString("F4", ic) + " × "
+                        + _lastFinalGear.ToString("F4", ic) + " = "
+                        + _lastEffectiveRatio.ToString("F4", ic)
                     + "\nnetTorque: "     + _lastNetTorque.ToString("F2", ic)
                     + "  T_out: "         + _lastTOut.ToString("F2", ic)
                     + "\nfrictionTorque: " + _lastFrictionTorque.ToString("F2", ic)
@@ -1042,7 +1126,7 @@ namespace MyMWCMod1
                     + "\nfinalDriveRatio: " + _lastOriginalFinalDriveRatio.ToString("F4", ic)
                     + "  → "              + _lastUpdatedFinalDriveRatio.ToString("F4", ic)
                     + "\n(ω_in/ω_stall)²×(1−ν): " + _lastTDragFactor.ToString("F4", ic);
-                GUI.Label(new Rect(10, 10, 500, 140), text, _overlayStyle);
+                GUI.Label(new Rect(10, 10, 500, 170), text, _overlayStyle);
             }
         }
 
@@ -1369,13 +1453,15 @@ namespace MyMWCMod1
         <Statistic field=""currentPower"" />
         <Statistic field=""powerMultiplier"" />
       </Statistics>
-      <TorqueConverter mode=""on"" KeyCode=""KeypadEnter"" RPMStall=""2000"" rStall=""2"">
+      <TorqueConverter mode=""on"" KeyCode=""KeypadEnter"" RPMStall=""1600"" rStall=""2"">
         <vehicleMass path=""CORRIS/Simulation/CarData"" fsmName=""GetWeight"" fsmFloat=""Mass"" />
         <wheelRadius path=""CORRIS/PhysicalAssemblies/REAR/AxleDamagePivot/RearWheelsStatic/WHEELc_RL/tire/VINP_WheelRL"" fsmName=""Data"" fsmFloat=""TireRadius"" />
-        <Gearbox>
-          <GearRatio gear=""2"" ratio=""10.6116"" />
-          <GearRatio gear=""3"" ratio=""6.438"" />
-          <GearRatio gear=""4"" ratio=""4.44"" />
+        <RearAxle    path=""CORRIS/PhysicalAssemblies/REAR/AxleDamagePivot/RearWheelsStatic/WHEELc_RL/wheel_spindle_rl/VINP_RearAxle"" fsmName=""Data"" fsmFloat=""FinalGear"" />
+        <Gearbox     path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Gearbox"" fsmName=""Data"">
+          <GearRatio gear=""0"" fsmFloat=""RatioR"" ratio=""2.1""  mode=""display"" />
+          <GearRatio gear=""2"" fsmFloat=""Ratio1"" ratio=""2.39"" mode=""on"" />
+          <GearRatio gear=""3"" fsmFloat=""Ratio2"" ratio=""1.45"" mode=""display"" />
+          <GearRatio gear=""4"" fsmFloat=""Ratio3"" ratio=""1""    mode=""display"" />
         </Gearbox>
       </TorqueConverter>
     </Drivetrain>

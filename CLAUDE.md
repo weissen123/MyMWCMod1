@@ -135,26 +135,34 @@ Multiple `<Condition>` elements are AND-ed. If an object is not found at load ti
 
 **Torque converter** (`<TorqueConverter>` child inside `<Drivetrain>`, alongside `<Setting>` and `<Statistics>`):
 ```xml
-<TorqueConverter mode="on" KeyCode="KeypadEnter" RPMStall="2000" rStall="2">
+<TorqueConverter mode="on" KeyCode="KeypadEnter" RPMStall="1600" rStall="2">
   <vehicleMass path="CORRIS/Simulation/CarData" fsmName="GetWeight" fsmFloat="Mass" />
   <wheelRadius path="CORRIS/PhysicalAssemblies/REAR/AxleDamagePivot/RearWheelsStatic/WHEELc_RL/tire/VINP_WheelRL" fsmName="Data" fsmFloat="TireRadius" />
-  <Gearbox>
-    <GearRatio gear="2" ratio="10.6116" />
-    <GearRatio gear="3" ratio="6.438" />
-    <GearRatio gear="4" ratio="4.44" />
+  <RearAxle    path="CORRIS/PhysicalAssemblies/REAR/AxleDamagePivot/RearWheelsStatic/WHEELc_RL/wheel_spindle_rl/VINP_RearAxle" fsmName="Data" fsmFloat="FinalGear" />
+  <Gearbox     path="CORRIS/MotorPivot/MassCenter/Block/VINP_Gearbox" fsmName="Data">
+    <GearRatio gear="0" fsmFloat="RatioR" ratio="2.1"  mode="display" />
+    <GearRatio gear="2" fsmFloat="Ratio1" ratio="2.39" mode="on" />
+    <GearRatio gear="3" fsmFloat="Ratio2" ratio="1.45" mode="display" />
+    <GearRatio gear="4" fsmFloat="Ratio3" ratio="1"    mode="display" />
   </Gearbox>
 </TorqueConverter>
 ```
 
-- `mode`: `on` — integrate and write all five drivetrain fields + overlay; `display` — integrate and show overlay only, no write-back; `off` — skip loading entirely.
+- `mode`: `on` — integrate and write all five drivetrain fields + overlay; `display` — integrate and show overlay only, no write-back; `off` — skip loading entirely. Serves as the default for gears that do not declare their own `mode`.
 - `RPMStall`: engine speed at stall in RPM — converted to rad/s internally (`wStall = RPMStall × 2π / 60`).
 - `rStall`: torque ratio at stall (T_out / T_drag when ν = 0).
-- `KeyCode` (optional): Unity `KeyCode` enum name (case-insensitive) — press at runtime to toggle between `on` and `display` modes. Omit to disable toggle. Has no effect when initial `mode` is `off` (instance not loaded).
-- `<vehicleMass path="..." fsmName="..." fsmFloat="...">`: lazily resolved FSM float for vehicle mass (kg) — used to compute I_eff = m × r_wheel² / gearRatio².
+- `KeyCode` (optional): Unity `KeyCode` enum name (case-insensitive) — press at runtime to toggle the TC-level mode between `on` and `display`. Gears with an explicit per-gear `mode` ignore the toggle. Omit to disable toggle. Has no effect when initial `mode` is `off` (instance not loaded).
+- `<vehicleMass path="..." fsmName="..." fsmFloat="...">`: lazily resolved FSM float for vehicle mass (kg) — used to compute I_eff = m × r_wheel² / effectiveRatio².
 - `<wheelRadius path="..." fsmName="..." fsmFloat="...">`: lazily resolved FSM float for wheel radius (m).
-- Both are resolved via staged GO → FSM → variable lookup; resolution is retried every tick until successful. Integration and write-back are suppressed until both are resolved.
-- `<Gearbox>`: required wrapper containing one `<GearRatio gear="N" ratio="V">` per active gear. Active gears only; other gears skip the simulation tick.
-- Per tick: reads `ω_in` from game's `engineAngularVelo`; integrates `ω_out += T_out / I_eff × dt` when TC active; seeds `ω_out` from game on first tick or gear change. In `on` mode writes `differentialSpeed`, `finalDriveRatio`, `netTorque`, `frictionTorque` back. Skips when engine off or not in an active gear.
+- `<RearAxle path="..." fsmName="..." fsmFloat="..." />` (optional): lazily resolved FSM float for the rear-axle final drive (`FinalGear`). When present and resolved, the effective drivetrain ratio is `gearRatio × FinalGear`. When absent or unresolved, `FinalGear` defaults to `1.0` (so legacy XML where `ratio` already includes the final drive keeps working).
+- All three FSM lookups are resolved via staged GO → FSM → variable lookup; resolution is retried every tick until successful. Integration and write-back are suppressed until `vehicleMass` and `wheelRadius` are resolved.
+- `<Gearbox path="..." fsmName="...">`: required wrapper containing one `<GearRatio>` per active gear. Active gears only; other gears skip the simulation tick. The optional `path` and `fsmName` attributes on `<Gearbox>` point at a PlayMaker FSM that exposes per-gear ratio variables; when omitted, per-gear `fsmFloat` is ignored and every gear uses its static `ratio` fallback.
+- `<GearRatio gear="N" ratio="V" fsmFloat="..." mode="on|display" />`:
+  - `gear` (required): drivetrain `gear` value this entry applies to.
+  - `ratio` (required): fallback gear ratio — the gearbox-only ratio without `FinalGear` baked in. Used when the FSM variable cannot be resolved.
+  - `fsmFloat` (optional): name of a float variable on the `<Gearbox>` FSM holding the live gear ratio. When resolved, `gearRatio = fsmFloat.Value`; the effective drivetrain ratio is then `gearRatio × FinalGear`.
+  - `mode="on"` / `"display"` (optional): per-gear override of the TC-level `mode`. `on` writes back; `display` integrates and shows the overlay only. Omitted → the gear inherits the TC-level mode (which is what the `KeyCode` toggles).
+- Per tick: reads `ω_in` from game's `engineAngularVelo`; integrates `ω_out += T_out / I_eff × dt` when the active gear is in `on` mode and TC is active; seeds `ω_out` from game on first tick or gear change. In `on` mode writes `differentialSpeed`, `finalDriveRatio`, `netTorque`, `frictionTorque` back; `display` mode shows the overlay only. Skips when engine off or not in an active gear.
 
 ### Wear Reduction Logic (`ComponentMonitor.ApplyReduction`)
 
