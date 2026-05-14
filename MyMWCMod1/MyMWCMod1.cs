@@ -788,7 +788,7 @@ namespace MyMWCMod1
             private bool     _hasData;
             private float    _lastNetTorque;
             private float    _lastTOut;
-            private float    _lastNuRatio;
+            private float    _lastInOutRatio;
             private float    _lastR;
             private float    _lastOriginalFinalDriveRatio;
             private float    _lastUpdatedFinalDriveRatio;
@@ -1007,7 +1007,7 @@ namespace MyMWCMod1
                 _lastUpdatedFinalDriveRatio  = baseRatio / nuNew;
                 _lastNetTorque               = netTorque;
                 _lastFrictionTorque          = frictionTorque;
-                _lastNuRatio                 = _omegaIn / _omegaOut;
+                _lastInOutRatio                 = _omegaIn / _omegaOut;
                 _lastR                       = R;
                 _lastTDragFactor             = wRatio * wRatio * (1f - nu);
                 _lastTDrag                   = tDrag;
@@ -1030,7 +1030,7 @@ namespace MyMWCMod1
                     + "  T_out: "         + _lastTOut.ToString("F2", ic)
                     + "\nfrictionTorque: " + _lastFrictionTorque.ToString("F2", ic)
                     + "  T_drag: "         + _lastTDrag.ToString("F2", ic)
-                    + "\nω_in/ω_out: "    + _lastNuRatio.ToString("F3", ic)
+                    + "\nω_in/ω_out: "    + _lastInOutRatio.ToString("F3", ic)
                     + "  R(ν): "          + _lastR.ToString("F3", ic)
                     + "\nfinalDriveRatio: " + _lastOriginalFinalDriveRatio.ToString("F4", ic)
                     + "  → "              + _lastUpdatedFinalDriveRatio.ToString("F4", ic)
@@ -1202,8 +1202,8 @@ namespace MyMWCMod1
         {
             TorqueConverterSimulator.UpdateAll();
             DrivetrainStatisticsCollector.UpdateAll();
-            if (_pivotSaveKey.GetKeybindDown())  { PivotResetConfig.SaveCurrentPivot();  return; }
-            if (_pivotResetKey.GetKeybindDown()) { PivotResetConfig.ResetCurrentPivot(); return; }
+            if      (_pivotSaveKey.GetKeybindDown())  PivotResetConfig.SaveCurrentPivot();
+            else if (_pivotResetKey.GetKeybindDown()) PivotResetConfig.ResetCurrentPivot();
         }
 
         private void Mod_FixedUpdate()
@@ -1228,7 +1228,7 @@ namespace MyMWCMod1
             TorqueConverterSimulator.Reset();
             PivotResetConfig.Reset();
             string xmlPath = XmlPath;
-            EnsureXmlExists();
+            EnsureXmlExists();   // defensive: Mod_Settings created the file, but a user could delete it before Mod_OnLoad fires
             XmlDocument doc = new XmlDocument();
             doc.Load(xmlPath);
 
