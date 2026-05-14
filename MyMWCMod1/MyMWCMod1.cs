@@ -60,6 +60,66 @@ namespace MyMWCMod1
             }
         }
 
+        private abstract class FsmStagedLookup<TVar> where TVar : class
+        {
+            private readonly string _path;
+            private readonly string _fsmName;
+            private readonly string _varName;
+            private readonly string _logLabel;
+
+            private GameObject   _cachedGO;
+            private PlayMakerFSM _cachedFsm;
+            private TVar         _resolved;
+
+            protected FsmStagedLookup(string path, string fsmName, string varName, string logLabel)
+            { _path = path; _fsmName = fsmName; _varName = varName; _logLabel = logLabel; }
+
+            public    bool   IsResolved => _resolved != null;
+            public    TVar   Resolved   => _resolved;
+            protected string LogLabel   => _logLabel;
+            protected string VarName    => _varName;
+
+            protected abstract TVar FindVariable(FsmVariables vars, string name);
+            protected virtual  void OnResolved(TVar v) { }
+
+            public TVar TryResolve()
+            {
+                if (_resolved != null) return _resolved;
+                if (_cachedGO == null)
+                {
+                    _cachedGO = GameObject.Find(_path);
+                    if (_cachedGO == null) return null;
+                }
+                if (_cachedFsm == null)
+                {
+                    foreach (PlayMakerFSM fsm in _cachedGO.GetComponentsInChildren<PlayMakerFSM>())
+                        if (fsm.FsmName == _fsmName) { _cachedFsm = fsm; break; }
+                    if (_cachedFsm == null) return null;
+                }
+                TVar result = FindVariable(_cachedFsm.FsmVariables, _varName);
+                if (result != null) { _resolved = result; OnResolved(result); }
+                return result;
+            }
+        }
+
+        private sealed class FsmFloatLookup : FsmStagedLookup<FsmFloat>
+        {
+            public FsmFloatLookup(string path, string fsmName, string varName, string logLabel)
+                : base(path, fsmName, varName, logLabel) { }
+            protected override FsmFloat FindVariable(FsmVariables vars, string name) => vars.FindFsmFloat(name);
+            protected override void OnResolved(FsmFloat v)
+                => ModConsole.Log(LogLabel + " '" + VarName + "' resolved = " + v.Value);
+        }
+
+        private sealed class FsmBoolLookup : FsmStagedLookup<FsmBool>
+        {
+            public FsmBoolLookup(string path, string fsmName, string varName, string logLabel)
+                : base(path, fsmName, varName, logLabel) { }
+            protected override FsmBool FindVariable(FsmVariables vars, string name) => vars.FindFsmBool(name);
+            protected override void OnResolved(FsmBool v)
+                => ModConsole.Log(LogLabel + " '" + VarName + "' resolved = " + v.Value);
+        }
+
         private class ComponentMonitor
         {
             public string        Label;
@@ -108,24 +168,10 @@ namespace MyMWCMod1
 
             private static FsmFloat FindFsmFloat(string objectName, string fsmName, string floatName, string logLabel)
             {
-                GameObject obj = GameObject.Find(objectName);
-                if (obj == null)
-                {
-                    ModConsole.Error($"FAILED TO FIND object for {logLabel}!!!");
-                    return null;
-                }
-                foreach (PlayMakerFSM fsm in obj.GetComponentsInChildren<PlayMakerFSM>())
-                {
-                    if (fsm.FsmName != fsmName) continue;
-                    FsmFloat result = fsm.FsmVariables.FindFsmFloat(floatName);
-                    if (result != null)
-                    {
-                        ModConsole.Log($"{logLabel} '{floatName}' = {result.Value}");
-                        return result;
-                    }
-                }
-                ModConsole.Error($"FAILED TO FIND FsmFloat '{floatName}' in any FSM '{fsmName}' on {logLabel}!!!");
-                return null;
+                FsmFloat result = new FsmFloatLookup(objectName, fsmName, floatName, logLabel).TryResolve();
+                if (result == null)
+                    ModConsole.Error($"FAILED TO FIND FsmFloat '{floatName}' in FSM '{fsmName}' on {logLabel}!!!");
+                return result;
             }
 
             private static readonly List<ComponentMonitor> _instances = new List<ComponentMonitor>();
@@ -258,62 +304,30 @@ namespace MyMWCMod1
 
             private class FsmBoolCondition : ICondition
             {
-                private readonly string _path;
-                private readonly string _fsmName;
-                private readonly string _varName;
-                private readonly string _logLabel;
-
                 private const float RetryInterval = 1f; // seconds between resolution attempts
 
-                private GameObject   _cachedGO;       // set once GameObject.Find succeeds
-                private PlayMakerFSM _cachedFsm;      // set once FSM-by-name scan succeeds
-                private FsmBool      _resolved;       // set once FsmVariables lookup succeeds
-                private float        _nextRetryTime;  // default 0f → first call always attempts
+                private readonly FsmBoolLookup _lookup;
+                private readonly string        _varName;
+                private readonly string        _logLabel;
+                private float                  _nextRetryTime;  // default 0f → first call always attempts
 
                 public FsmBoolCondition(string path, string fsmName, string varName, string logLabel)
                 {
-                    _path = path; _fsmName = fsmName; _varName = varName; _logLabel = logLabel;
+                    _lookup   = new FsmBoolLookup(path, fsmName, varName, logLabel);
+                    _varName  = varName;
+                    _logLabel = logLabel;
                 }
 
-                public bool   IsResolved => _resolved != null;
+                public bool   IsResolved => _lookup.IsResolved;
                 public string LogPrefix  => _logLabel + " '" + _varName + "'";
 
                 public bool Evaluate()
                 {
-                    // Hot path: bool already cached
-                    if (_resolved != null) return _resolved.Value;
-
-                    // Rate-limit retries to once per second
+                    if (_lookup.IsResolved) return _lookup.Resolved.Value;
                     if (UnityEngine.Time.fixedTime < _nextRetryTime) return false;
                     _nextRetryTime = UnityEngine.Time.fixedTime + RetryInterval;
-
-                    // Stage 1: find the GameObject
-                    if (_cachedGO == null)
-                    {
-                        _cachedGO = GameObject.Find(_path);
-                        if (_cachedGO == null) return false;
-                    }
-
-                    // Stage 2: find the PlayMakerFSM by name (GetComponentsInChildren runs once, then cached)
-                    if (_cachedFsm == null)
-                    {
-                        foreach (PlayMakerFSM fsm in _cachedGO.GetComponentsInChildren<PlayMakerFSM>())
-                        {
-                            if (fsm.FsmName == _fsmName) { _cachedFsm = fsm; break; }
-                        }
-                        if (_cachedFsm == null) return false;
-                    }
-
-                    // Stage 3: find the bool variable
-                    FsmBool result = _cachedFsm.FsmVariables.FindFsmBool(_varName);
-                    if (result != null)
-                    {
-                        _resolved = result;
-                        ModConsole.Log($"{_logLabel} '{_varName}' resolved = {result.Value}");
-                        return result.Value;
-                    }
-
-                    return false;
+                    FsmBool r = _lookup.TryResolve();
+                    return r != null && r.Value;
                 }
             }
 
@@ -724,48 +738,16 @@ namespace MyMWCMod1
         {
             public class DeferredFsmFloat
             {
-                private readonly string _path;
-                private readonly string _fsmName;
-                private readonly string _varName;
-
-                private GameObject   _cachedGO;
-                private PlayMakerFSM _cachedFsm;
-                private FsmFloat     _resolved;
-
-                public bool  IsResolved => _resolved != null;
-                public float Value      => _resolved.Value;
+                private readonly FsmFloatLookup _lookup;
 
                 public DeferredFsmFloat(string path, string fsmName, string varName)
                 {
-                    _path = path; _fsmName = fsmName; _varName = varName;
+                    _lookup = new FsmFloatLookup(path, fsmName, varName, "MyMWCMod1: TC");
                 }
 
-                public void TryResolve()
-                {
-                    if (_resolved != null) return;
-
-                    if (_cachedGO == null)
-                    {
-                        _cachedGO = GameObject.Find(_path);
-                        if (_cachedGO == null) return;
-                    }
-
-                    if (_cachedFsm == null)
-                    {
-                        foreach (PlayMakerFSM fsm in _cachedGO.GetComponentsInChildren<PlayMakerFSM>())
-                        {
-                            if (fsm.FsmName == _fsmName) { _cachedFsm = fsm; break; }
-                        }
-                        if (_cachedFsm == null) return;
-                    }
-
-                    FsmFloat result = _cachedFsm.FsmVariables.FindFsmFloat(_varName);
-                    if (result != null)
-                    {
-                        _resolved = result;
-                        ModConsole.Log("MyMWCMod1: TC '" + _varName + "' resolved = " + result.Value);
-                    }
-                }
+                public bool  IsResolved => _lookup.IsResolved;
+                public float Value      => _lookup.Resolved.Value;
+                public void  TryResolve() { _lookup.TryResolve(); }
             }
 
             private string                 _goName;
