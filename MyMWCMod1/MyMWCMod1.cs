@@ -605,62 +605,6 @@ namespace MyMWCMod1
             public static void CollectAll() { foreach (DrivetrainStatisticsCollector c in _instances) c.Collect(); }
             public static void DrawAll()    { foreach (DrivetrainStatisticsCollector c in _instances) c.DrawOverlay(); }
 
-            public static DrivetrainStatisticsCollector LoadFromXml(XmlElement statsEl, Drivetrain drivetrain, string goName)
-            {
-                string fileNameBase = statsEl.GetAttribute("fileName");
-                if (string.IsNullOrEmpty(fileNameBase))
-                {
-                    ModConsole.Error("MyMWCMod1: <Statistics> for '" + goName + "' missing fileName — skipped.");
-                    return null;
-                }
-
-                KeyCode keyCode;
-                if (!XmlAttr.TryKeyCode(statsEl, "KeyCode", out keyCode))
-                {
-                    ModConsole.Error("MyMWCMod1: <Statistics> for '" + goName + "' missing or invalid KeyCode — skipped.");
-                    return null;
-                }
-
-                var fieldList     = new List<System.Reflection.FieldInfo>();
-                var nameList      = new List<string>();
-                var liveFieldList = new List<System.Reflection.FieldInfo>();
-                var liveNameList  = new List<string>();
-                foreach (XmlNode child in statsEl.ChildNodes)
-                {
-                    if (child.NodeType != XmlNodeType.Element) continue;
-                    XmlElement statEl   = (XmlElement)child;
-                    string     fieldName = statEl.GetAttribute("field");
-                    System.Reflection.FieldInfo fi = ResolveDrivetrainField(
-                        drivetrain, fieldName, "<Statistics> for '" + goName + "'", includeNonPublic: true);
-                    if (fi == null) continue;
-                    fieldList.Add(fi);
-                    nameList.Add(fieldName);
-                    if (!string.IsNullOrEmpty(statEl.GetAttribute("live")))
-                    {
-                        liveFieldList.Add(fi);
-                        liveNameList.Add(fieldName);
-                    }
-                }
-
-                if (fieldList.Count == 0)
-                {
-                    ModConsole.Error("MyMWCMod1: <Statistics> for '" + goName + "' has no valid fields — skipped.");
-                    return null;
-                }
-
-                return new DrivetrainStatisticsCollector
-                {
-                    _goName          = goName,
-                    _fileNameBase    = fileNameBase,
-                    _keyCode         = keyCode,
-                    _fields          = fieldList.ToArray(),
-                    _fieldNames      = nameList.ToArray(),
-                    _liveFields      = liveFieldList.ToArray(),
-                    _liveFieldNames  = liveNameList.ToArray(),
-                    _drivetrain      = drivetrain,
-                };
-            }
-
             private void CheckToggle()
             {
                 if (!Input.GetKeyDown(_keyCode)) return;
@@ -740,6 +684,65 @@ namespace MyMWCMod1
                 }
                 float height = 20f + _liveFields.Length * 20f;
                 GUI.Label(new Rect(0, 0, Screen.width, height), sb.ToString(), _overlayStyle);
+            }
+
+            public static class XmlLoader
+            {
+                public static DrivetrainStatisticsCollector LoadFromXml(XmlElement statsEl, Drivetrain drivetrain, string goName)
+                {
+                    string fileNameBase = statsEl.GetAttribute("fileName");
+                    if (string.IsNullOrEmpty(fileNameBase))
+                    {
+                        ModConsole.Error("MyMWCMod1: <Statistics> for '" + goName + "' missing fileName — skipped.");
+                        return null;
+                    }
+
+                    KeyCode keyCode;
+                    if (!XmlAttr.TryKeyCode(statsEl, "KeyCode", out keyCode))
+                    {
+                        ModConsole.Error("MyMWCMod1: <Statistics> for '" + goName + "' missing or invalid KeyCode — skipped.");
+                        return null;
+                    }
+
+                    var fieldList     = new List<System.Reflection.FieldInfo>();
+                    var nameList      = new List<string>();
+                    var liveFieldList = new List<System.Reflection.FieldInfo>();
+                    var liveNameList  = new List<string>();
+                    foreach (XmlNode child in statsEl.ChildNodes)
+                    {
+                        if (child.NodeType != XmlNodeType.Element) continue;
+                        XmlElement statEl   = (XmlElement)child;
+                        string     fieldName = statEl.GetAttribute("field");
+                        System.Reflection.FieldInfo fi = ResolveDrivetrainField(
+                            drivetrain, fieldName, "<Statistics> for '" + goName + "'", includeNonPublic: true);
+                        if (fi == null) continue;
+                        fieldList.Add(fi);
+                        nameList.Add(fieldName);
+                        if (!string.IsNullOrEmpty(statEl.GetAttribute("live")))
+                        {
+                            liveFieldList.Add(fi);
+                            liveNameList.Add(fieldName);
+                        }
+                    }
+
+                    if (fieldList.Count == 0)
+                    {
+                        ModConsole.Error("MyMWCMod1: <Statistics> for '" + goName + "' has no valid fields — skipped.");
+                        return null;
+                    }
+
+                    return new DrivetrainStatisticsCollector
+                    {
+                        _goName          = goName,
+                        _fileNameBase    = fileNameBase,
+                        _keyCode         = keyCode,
+                        _fields          = fieldList.ToArray(),
+                        _fieldNames      = nameList.ToArray(),
+                        _liveFields      = liveFieldList.ToArray(),
+                        _liveFieldNames  = liveNameList.ToArray(),
+                        _drivetrain      = drivetrain,
+                    };
+                }
             }
         }
 
@@ -1275,7 +1278,7 @@ namespace MyMWCMod1
                         XmlElement statsEl = (XmlElement)drivetrainEl.SelectSingleNode("Statistics");
                         if (statsEl != null)
                         {
-                            DrivetrainStatisticsCollector stats = DrivetrainStatisticsCollector.LoadFromXml(statsEl, drivetrain, label);
+                            DrivetrainStatisticsCollector stats = DrivetrainStatisticsCollector.XmlLoader.LoadFromXml(statsEl, drivetrain, label);
                             DrivetrainStatisticsCollector.Add(stats);
                             if (stats != null) statisticsCount++;
                         }
