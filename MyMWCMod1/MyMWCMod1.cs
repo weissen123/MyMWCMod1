@@ -107,7 +107,7 @@ namespace MyMWCMod1
             private static readonly List<ComponentMonitor> _instances = new List<ComponentMonitor>();
 
             public static void Reset() { _instances.Clear(); }
-            public static void Add(ComponentMonitor monitor) { _instances.Add(monitor); }
+            public static void Add(ComponentMonitor monitor) { if (monitor != null) _instances.Add(monitor); }
 
             public static void ApplyAll()
             {
@@ -130,7 +130,7 @@ namespace MyMWCMod1
             private static string                           _xmlPath;
 
             public static void Reset() { _configs.Clear(); }
-            public static void Add(PivotResetConfig config) { _configs.Add(config); }
+            public static void Add(PivotResetConfig config) { if (config != null) _configs.Add(config); }
 
             public static void Init(string xmlPath)
             {
@@ -366,7 +366,7 @@ namespace MyMWCMod1
 
             public string     Label;
             public Drivetrain Drivetrain;
-            private readonly List<DrivetrainBoolSetting> BoolSettings = new List<DrivetrainBoolSetting>();
+            private readonly List<DrivetrainBoolSetting> _boolSettings = new List<DrivetrainBoolSetting>();
 
             private static readonly List<DrivetrainMonitor>                       _instances        = new List<DrivetrainMonitor>();
             private static readonly Dictionary<string, SettingsCheckBox> _checkboxSettings = new Dictionary<string, SettingsCheckBox>();
@@ -422,14 +422,18 @@ namespace MyMWCMod1
                 _sliderSettings[id] = Settings.AddSlider(id, s.GetAttribute("label"), min, max, def);
             }
 
-            public static DrivetrainMonitor LoadFromXml(string path, string label, XmlElement drivetrainEl)
+            public static Drivetrain ResolveDrivetrain(string goPath, string label)
             {
-                GameObject go = GameObject.Find(path);
+                GameObject go = GameObject.Find(goPath);
                 if (go == null) { ModConsole.Error("FAILED TO FIND " + label + "!!!"); return null; }
                 Drivetrain drivetrain = go.GetComponent<Drivetrain>();
                 if (drivetrain == null) return null;
                 ModConsole.Log("MyMWCMod1: Drivetrain setup for " + label);
+                return drivetrain;
+            }
 
+            public static DrivetrainMonitor LoadFromXml(XmlElement drivetrainEl, Drivetrain drivetrain, string label)
+            {
                 DrivetrainMonitor monitor = new DrivetrainMonitor { Label = label, Drivetrain = drivetrain };
                 foreach (XmlNode settingNode in drivetrainEl.ChildNodes)
                 {
@@ -440,22 +444,12 @@ namespace MyMWCMod1
                     if (type == "slider")   { monitor.ApplySliderSetting(s, id);   continue; }
                     if (type == "checkbox") { monitor.ApplyCheckboxSetting(s, id); continue; }
                 }
-                XmlElement statsEl = (XmlElement)drivetrainEl.SelectSingleNode("Statistics");
-                if (statsEl != null)
-                    DrivetrainStatisticsCollector.Add(
-                        DrivetrainStatisticsCollector.LoadFromXml(statsEl, drivetrain, label));
-
-                XmlElement tcEl = (XmlElement)drivetrainEl.SelectSingleNode("TorqueConverter");
-                if (tcEl != null)
-                    TorqueConverterSimulator.Add(
-                        TorqueConverterSimulator.XmlLoader.LoadFromXml(tcEl, drivetrain, label));
-
-                return monitor.BoolSettings.Count > 0 ? monitor : null;
+                return monitor._boolSettings.Count > 0 ? monitor : null;
             }
 
             public void Apply()
             {
-                foreach (DrivetrainBoolSetting s in BoolSettings)
+                foreach (DrivetrainBoolSetting s in _boolSettings)
                     s.Apply(Drivetrain);
             }
 
@@ -491,7 +485,7 @@ namespace MyMWCMod1
                 XmlNodeList condNodes = s.SelectNodes("Condition");
                 if (condNodes.Count == 0) { fi.SetValue(Drivetrain, cb.GetValue()); return; }
 
-                BoolSettings.Add(BuildConditionedSetting(condNodes, id, cb, fi));
+                _boolSettings.Add(BuildConditionedSetting(condNodes, id, cb, fi));
             }
 
             private DrivetrainBoolSetting BuildConditionedSetting(XmlNodeList condNodes, string id,
@@ -1266,14 +1260,29 @@ namespace MyMWCMod1
                 XmlElement drivetrainEl = (XmlElement)el.SelectSingleNode("Drivetrain");
                 if (drivetrainEl != null)
                 {
-                    DrivetrainMonitor.Add(DrivetrainMonitor.LoadFromXml(goPath, label, drivetrainEl));
+                    Drivetrain drivetrain = DrivetrainMonitor.ResolveDrivetrain(goPath, label);
+                    if (drivetrain != null)
+                    {
+                        DrivetrainMonitor.Add(DrivetrainMonitor.LoadFromXml(drivetrainEl, drivetrain, label));
+
+                        XmlElement statsEl = (XmlElement)drivetrainEl.SelectSingleNode("Statistics");
+                        if (statsEl != null)
+                            DrivetrainStatisticsCollector.Add(
+                                DrivetrainStatisticsCollector.LoadFromXml(statsEl, drivetrain, label));
+
+                        XmlElement tcEl = (XmlElement)drivetrainEl.SelectSingleNode("TorqueConverter");
+                        if (tcEl != null)
+                            TorqueConverterSimulator.Add(
+                                TorqueConverterSimulator.XmlLoader.LoadFromXml(tcEl, drivetrain, label));
+                    }
                     isContainer = true;
                 }
 
                 if (isContainer) continue;
 
                 ComponentMonitor monitor = ComponentMonitor.LoadFromXml(el, label, goPath);
-                if (monitor != null) { ComponentMonitor.Add(monitor); componentCount++; }
+                ComponentMonitor.Add(monitor);
+                if (monitor != null) componentCount++;
             }
 
             ModConsole.Log("MyMWCMod1: Loaded " + componentCount + " component monitors from " + xmlPath);
