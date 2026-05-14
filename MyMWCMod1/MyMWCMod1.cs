@@ -31,6 +31,35 @@ namespace MyMWCMod1
 
         private enum WearDirection { Increases, Decreases }
 
+        private static class XmlAttr
+        {
+            private const System.Globalization.NumberStyles NS =
+                System.Globalization.NumberStyles.Float;
+            private static readonly System.Globalization.CultureInfo IC =
+                System.Globalization.CultureInfo.InvariantCulture;
+
+            public static bool TryFloat(XmlElement el, string name, out float v)
+                => float.TryParse(el.GetAttribute(name), NS, IC, out v);
+
+            public static float Float(XmlElement el, string name, float fallback)
+            { float v; return TryFloat(el, name, out v) ? v : fallback; }
+
+            public static bool Bool(XmlElement el, string name, bool fallback)
+            { bool v; return bool.TryParse(el.GetAttribute(name), out v) ? v : fallback; }
+
+            public static bool TryInt(XmlElement el, string name, out int v)
+                => int.TryParse(el.GetAttribute(name), out v);
+
+            public static bool TryKeyCode(XmlElement el, string name, out KeyCode kc)
+            {
+                kc = KeyCode.None;
+                string s = el.GetAttribute(name);
+                if (string.IsNullOrEmpty(s)) return false;
+                try { kc = (KeyCode)System.Enum.Parse(typeof(KeyCode), s, true); return true; }
+                catch { return false; }
+            }
+        }
+
         private class ComponentMonitor
         {
             public string        Label;
@@ -55,19 +84,14 @@ namespace MyMWCMod1
 
             public static ComponentMonitor LoadFromXml(XmlElement el, string label, string goPath)
             {
-                string fsmName   = el.GetAttribute("fsmName");
-                string fsmFloat  = el.GetAttribute("fsmFloat");
-                string dirStr    = el.GetAttribute("direction");
-                string factorStr = el.GetAttribute("factor");
+                string fsmName  = el.GetAttribute("fsmName");
+                string fsmFloat = el.GetAttribute("fsmFloat");
 
-                WearDirection direction = dirStr == "Increases"
+                WearDirection direction = el.GetAttribute("direction") == "Increases"
                     ? WearDirection.Increases
                     : WearDirection.Decreases;
 
-                float factor;
-                if (!float.TryParse(factorStr, System.Globalization.NumberStyles.Float,
-                        System.Globalization.CultureInfo.InvariantCulture, out factor))
-                    factor = 0.01f;
+                float factor = XmlAttr.Float(el, "factor", 0.01f);
 
                 FsmFloat value = FindFsmFloat(goPath, fsmName, fsmFloat, label);
                 if (value == null) return null;
@@ -175,21 +199,18 @@ namespace MyMWCMod1
 
             public static PivotResetConfig LoadFromXml(XmlElement pivotEl)
             {
-                var ns = System.Globalization.NumberStyles.Float;
-                var ic = System.Globalization.CultureInfo.InvariantCulture;
-                float px, py, pz, rx, ry, rz;
-                float.TryParse(pivotEl.GetAttribute("posX"), ns, ic, out px);
-                float.TryParse(pivotEl.GetAttribute("posY"), ns, ic, out py);
-                float.TryParse(pivotEl.GetAttribute("posZ"), ns, ic, out pz);
-                float.TryParse(pivotEl.GetAttribute("rotX"), ns, ic, out rx);
-                float.TryParse(pivotEl.GetAttribute("rotY"), ns, ic, out ry);
-                float.TryParse(pivotEl.GetAttribute("rotZ"), ns, ic, out rz);
                 return new PivotResetConfig
                 {
                     VehicleName      = pivotEl.GetAttribute("vehicleName"),
                     GameObjectPath   = pivotEl.GetAttribute("playerPath"),
-                    LocalPosition    = new Vector3(px, py, pz),
-                    LocalEulerAngles = new Vector3(rx, ry, rz),
+                    LocalPosition    = new Vector3(
+                        XmlAttr.Float(pivotEl, "posX", 0f),
+                        XmlAttr.Float(pivotEl, "posY", 0f),
+                        XmlAttr.Float(pivotEl, "posZ", 0f)),
+                    LocalEulerAngles = new Vector3(
+                        XmlAttr.Float(pivotEl, "rotX", 0f),
+                        XmlAttr.Float(pivotEl, "rotY", 0f),
+                        XmlAttr.Float(pivotEl, "rotZ", 0f)),
                 };
             }
 
@@ -406,19 +427,14 @@ namespace MyMWCMod1
 
             private static void RegisterCheckboxSetting(XmlElement s, string id)
             {
-                bool defBool;
-                bool.TryParse(s.GetAttribute("default"), out defBool);
-                _checkboxSettings[id] = Settings.AddCheckBox(id, s.GetAttribute("label"), defBool);
+                _checkboxSettings[id] = Settings.AddCheckBox(id, s.GetAttribute("label"), XmlAttr.Bool(s, "default", false));
             }
 
             private static void RegisterSliderSetting(XmlElement s, string id)
             {
-                var ns = System.Globalization.NumberStyles.Float;
-                var ic = System.Globalization.CultureInfo.InvariantCulture;
-                float min, max, def;
-                float.TryParse(s.GetAttribute("min"),     ns, ic, out min);
-                float.TryParse(s.GetAttribute("max"),     ns, ic, out max);
-                float.TryParse(s.GetAttribute("default"), ns, ic, out def);
+                float min = XmlAttr.Float(s, "min",     0f);
+                float max = XmlAttr.Float(s, "max",     0f);
+                float def = XmlAttr.Float(s, "default", 0f);
                 _sliderSettings[id] = Settings.AddSlider(id, s.GetAttribute("label"), min, max, def);
             }
 
@@ -533,11 +549,9 @@ namespace MyMWCMod1
             {
                 string compName = condEl.GetAttribute("CompName");
                 string varFloat = condEl.GetAttribute("varFloat");
-                string minStr   = condEl.GetAttribute("minFloat");
                 float  minFloat;
                 if (string.IsNullOrEmpty(path) || string.IsNullOrEmpty(compName) || string.IsNullOrEmpty(varFloat)
-                    || !float.TryParse(minStr, System.Globalization.NumberStyles.Float,
-                                       System.Globalization.CultureInfo.InvariantCulture, out minFloat))
+                    || !XmlAttr.TryFloat(condEl, "minFloat", out minFloat))
                 {
                     ModConsole.Error("MyMWCMod1: ComponentFloat condition for '" + id + "' is missing required attributes — condition skipped.");
                     return null;
@@ -576,19 +590,16 @@ namespace MyMWCMod1
             public static DrivetrainStatisticsCollector LoadFromXml(XmlElement statsEl, Drivetrain drivetrain, string goName)
             {
                 string fileNameBase = statsEl.GetAttribute("fileName");
-                string keyCodeStr   = statsEl.GetAttribute("KeyCode");
-
-                if (string.IsNullOrEmpty(fileNameBase) || string.IsNullOrEmpty(keyCodeStr))
+                if (string.IsNullOrEmpty(fileNameBase))
                 {
-                    ModConsole.Error("MyMWCMod1: <Statistics> for '" + goName + "' missing fileName or KeyCode — skipped.");
+                    ModConsole.Error("MyMWCMod1: <Statistics> for '" + goName + "' missing fileName — skipped.");
                     return null;
                 }
 
                 KeyCode keyCode;
-                try { keyCode = (KeyCode)System.Enum.Parse(typeof(KeyCode), keyCodeStr, true); }
-                catch
+                if (!XmlAttr.TryKeyCode(statsEl, "KeyCode", out keyCode))
                 {
-                    ModConsole.Error("MyMWCMod1: <Statistics> for '" + goName + "' invalid KeyCode '" + keyCodeStr + "' — skipped.");
+                    ModConsole.Error("MyMWCMod1: <Statistics> for '" + goName + "' missing or invalid KeyCode — skipped.");
                     return null;
                 }
 
@@ -874,12 +885,10 @@ namespace MyMWCMod1
 
                 public static bool ParseStallParams(XmlElement el, string goName, out float wStall, out float rStall)
                 {
-                    var ns = System.Globalization.NumberStyles.Float;
-                    var ic = System.Globalization.CultureInfo.InvariantCulture;
                     float rpmStall;
-                    rStall = wStall = 0f;
-                    if (!float.TryParse(el.GetAttribute("RPMStall"), ns, ic, out rpmStall) ||
-                        !float.TryParse(el.GetAttribute("rStall"),   ns, ic, out rStall))
+                    wStall = 0f;
+                    if (!XmlAttr.TryFloat(el, "RPMStall", out rpmStall) ||
+                        !XmlAttr.TryFloat(el, "rStall",   out rStall))
                     {
                         ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' missing or invalid RPMStall/rStall — skipped.");
                         return false;
@@ -892,12 +901,10 @@ namespace MyMWCMod1
                 {
                     string str = el.GetAttribute("KeyCode");
                     if (string.IsNullOrEmpty(str)) return KeyCode.None;
-                    try { return (KeyCode)System.Enum.Parse(typeof(KeyCode), str, true); }
-                    catch
-                    {
-                        ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' invalid KeyCode '" + str + "' — toggle disabled.");
-                        return KeyCode.None;
-                    }
+                    KeyCode kc;
+                    if (XmlAttr.TryKeyCode(el, "KeyCode", out kc)) return kc;
+                    ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' invalid KeyCode '" + str + "' — toggle disabled.");
+                    return KeyCode.None;
                 }
 
                 public static DeferredFsmFloat LoadDeferredFloat(XmlElement el, string tag, string goName)
@@ -916,8 +923,6 @@ namespace MyMWCMod1
 
                 public static Dictionary<int, float> LoadGearRatios(XmlElement el, string goName)
                 {
-                    var ns = System.Globalization.NumberStyles.Float;
-                    var ic = System.Globalization.CultureInfo.InvariantCulture;
                     XmlElement gearboxEl = (XmlElement)el.SelectSingleNode("Gearbox");
                     if (gearboxEl == null)
                     {
@@ -929,8 +934,8 @@ namespace MyMWCMod1
                     {
                         XmlElement gearEl = (XmlElement)node;
                         int gear; float ratio;
-                        if (int.TryParse(gearEl.GetAttribute("gear"), out gear) &&
-                            float.TryParse(gearEl.GetAttribute("ratio"), ns, ic, out ratio))
+                        if (XmlAttr.TryInt(gearEl, "gear", out gear) &&
+                            XmlAttr.TryFloat(gearEl, "ratio", out ratio))
                             gearRatios[gear] = ratio;
                         else
                             ModConsole.Error("MyMWCMod1: <GearRatio> for '" + goName + "' invalid gear/ratio — skipped.");
