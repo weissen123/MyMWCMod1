@@ -423,156 +423,154 @@ namespace MyMWCMod1
                     m.Apply();
             }
 
-            public static void RegisterSettings(string xmlPath)
-            {
-                XmlDocument doc = new XmlDocument();
-                doc.Load(xmlPath);
-
-                foreach (XmlNode monNode in doc.DocumentElement.ChildNodes)
-                {
-                    if (monNode.NodeType != XmlNodeType.Element) continue;
-                    XmlElement drivetrainEl = (XmlElement)((XmlElement)monNode).SelectSingleNode("Drivetrain");
-                    if (drivetrainEl == null) continue;
-
-                    foreach (XmlNode settingNode in drivetrainEl.ChildNodes)
-                    {
-                        if (settingNode.NodeType != XmlNodeType.Element) continue;
-                        XmlElement s    = (XmlElement)settingNode;
-                        string     id   = s.GetAttribute("id");
-                        string     type = s.GetAttribute("type");
-                        if (type == "checkbox") { RegisterCheckboxSetting(s, id); continue; }
-                        if (type == "slider")   { RegisterSliderSetting(s, id);   continue; }
-                    }
-                }
-            }
-
-            private static void RegisterCheckboxSetting(XmlElement s, string id)
-            {
-                _checkboxSettings[id] = Settings.AddCheckBox(id, s.GetAttribute("label"), XmlAttr.Bool(s, "default", false));
-            }
-
-            private static void RegisterSliderSetting(XmlElement s, string id)
-            {
-                float min = XmlAttr.Float(s, "min",     0f);
-                float max = XmlAttr.Float(s, "max",     0f);
-                float def = XmlAttr.Float(s, "default", 0f);
-                _sliderSettings[id] = Settings.AddSlider(id, s.GetAttribute("label"), min, max, def);
-            }
-
-            public static Drivetrain ResolveDrivetrain(string goPath, string label)
-            {
-                GameObject go = GameObject.Find(goPath);
-                if (go == null) { ModConsole.Error("FAILED TO FIND " + label + "!!!"); return null; }
-                Drivetrain drivetrain = go.GetComponent<Drivetrain>();
-                if (drivetrain == null) return null;
-                ModConsole.Log("MyMWCMod1: Drivetrain setup for " + label);
-                return drivetrain;
-            }
-
-            public static DrivetrainMonitor LoadFromXml(XmlElement drivetrainEl, Drivetrain drivetrain, string label)
-            {
-                DrivetrainMonitor monitor = new DrivetrainMonitor { Label = label, Drivetrain = drivetrain };
-                foreach (XmlNode settingNode in drivetrainEl.ChildNodes)
-                {
-                    if (settingNode.NodeType != XmlNodeType.Element) continue;
-                    XmlElement s    = (XmlElement)settingNode;
-                    string     id   = s.GetAttribute("id");
-                    string     type = s.GetAttribute("type");
-                    if (type == "slider")   { monitor.ApplySliderSetting(s, id);   continue; }
-                    if (type == "checkbox") { monitor.ApplyCheckboxSetting(s, id); continue; }
-                }
-                return monitor._boolSettings.Count > 0 ? monitor : null;
-            }
-
             public void Apply()
             {
                 foreach (DrivetrainBoolSetting s in _boolSettings)
                     s.Apply(Drivetrain);
             }
 
-            private System.Reflection.FieldInfo ResolveField(string id)
+            public static class XmlLoader
             {
-                return ResolveDrivetrainField(Drivetrain, id, "<Setting id='" + id + "'>", includeNonPublic: false);
-            }
-
-            private void ApplySliderSetting(XmlElement s, string id)
-            {
-                SettingsSlider slider;
-                if (!_sliderSettings.TryGetValue(id, out slider)) return;
-
-                System.Reflection.FieldInfo fi = ResolveField(id);
-                if (fi == null) return;
-
-                fi.SetValue(Drivetrain, (float)slider.GetValue());
-            }
-
-            private void ApplyCheckboxSetting(XmlElement s, string id)
-            {
-                SettingsCheckBox cb;
-                if (!_checkboxSettings.TryGetValue(id, out cb)) return;
-
-                System.Reflection.FieldInfo fi = ResolveField(id);
-                if (fi == null) return;
-
-                XmlNodeList condNodes = s.SelectNodes("Condition");
-                if (condNodes.Count == 0) { fi.SetValue(Drivetrain, cb.GetValue()); return; }
-
-                _boolSettings.Add(BuildConditionedSetting(condNodes, id, cb, fi));
-            }
-
-            private DrivetrainBoolSetting BuildConditionedSetting(XmlNodeList condNodes, string id,
-                SettingsCheckBox cb, System.Reflection.FieldInfo field)
-            {
-                DrivetrainBoolSetting boolSetting = new DrivetrainBoolSetting { Checkbox = cb, Field = field };
-                foreach (XmlNode condNode in condNodes)
+                public static void RegisterSettings(string xmlPath)
                 {
-                    ICondition cond = BuildCondition((XmlElement)condNode, id);
-                    if (cond == null) continue;
-                    cond.Evaluate();
-                    if (!cond.IsResolved)
-                        ModConsole.Log(cond.LogPrefix + " not resolved at load — will retry at runtime.");
-                    boolSetting.Conditions.Add(cond);
+                    XmlDocument doc = new XmlDocument();
+                    doc.Load(xmlPath);
+
+                    foreach (XmlNode monNode in doc.DocumentElement.ChildNodes)
+                    {
+                        if (monNode.NodeType != XmlNodeType.Element) continue;
+                        XmlElement drivetrainEl = (XmlElement)((XmlElement)monNode).SelectSingleNode("Drivetrain");
+                        if (drivetrainEl == null) continue;
+
+                        foreach (XmlNode settingNode in drivetrainEl.ChildNodes)
+                        {
+                            if (settingNode.NodeType != XmlNodeType.Element) continue;
+                            XmlElement s    = (XmlElement)settingNode;
+                            string     id   = s.GetAttribute("id");
+                            string     type = s.GetAttribute("type");
+                            if (type == "checkbox") { RegisterCheckboxSetting(s, id); continue; }
+                            if (type == "slider")   { RegisterSliderSetting(s, id);   continue; }
+                        }
+                    }
                 }
-                return boolSetting;
-            }
 
-            private static ICondition BuildCondition(XmlElement condEl, string id)
-            {
-                string path     = condEl.GetAttribute("path");
-                string varFloat = condEl.GetAttribute("varFloat");
-                string fsmBool  = condEl.GetAttribute("fsmBool");
-
-                if (!string.IsNullOrEmpty(varFloat)) return BuildComponentFloatCondition(condEl, path, id);
-                if (!string.IsNullOrEmpty(fsmBool))  return BuildFsmBoolCondition(condEl, path, id);
-
-                ModConsole.Error("MyMWCMod1: Condition for '" + id + "' has neither fsmBool nor varFloat — condition skipped.");
-                return null;
-            }
-
-            private static ICondition BuildFsmBoolCondition(XmlElement condEl, string path, string id)
-            {
-                string fsmName = condEl.GetAttribute("fsmName");
-                string fsmBool = condEl.GetAttribute("fsmBool");
-                if (string.IsNullOrEmpty(path) || string.IsNullOrEmpty(fsmName) || string.IsNullOrEmpty(fsmBool))
+                private static void RegisterCheckboxSetting(XmlElement s, string id)
                 {
-                    ModConsole.Error("MyMWCMod1: FsmBool condition for '" + id + "' is missing required attributes — condition skipped.");
+                    _checkboxSettings[id] = Settings.AddCheckBox(id, s.GetAttribute("label"), XmlAttr.Bool(s, "default", false));
+                }
+
+                private static void RegisterSliderSetting(XmlElement s, string id)
+                {
+                    float min = XmlAttr.Float(s, "min",     0f);
+                    float max = XmlAttr.Float(s, "max",     0f);
+                    float def = XmlAttr.Float(s, "default", 0f);
+                    _sliderSettings[id] = Settings.AddSlider(id, s.GetAttribute("label"), min, max, def);
+                }
+
+                public static Drivetrain ResolveDrivetrain(string goPath, string label)
+                {
+                    GameObject go = GameObject.Find(goPath);
+                    if (go == null) { ModConsole.Error("FAILED TO FIND " + label + "!!!"); return null; }
+                    Drivetrain drivetrain = go.GetComponent<Drivetrain>();
+                    if (drivetrain == null) return null;
+                    ModConsole.Log("MyMWCMod1: Drivetrain setup for " + label);
+                    return drivetrain;
+                }
+
+                public static DrivetrainMonitor LoadFromXml(XmlElement drivetrainEl, Drivetrain drivetrain, string label)
+                {
+                    DrivetrainMonitor monitor = new DrivetrainMonitor { Label = label, Drivetrain = drivetrain };
+                    foreach (XmlNode settingNode in drivetrainEl.ChildNodes)
+                    {
+                        if (settingNode.NodeType != XmlNodeType.Element) continue;
+                        XmlElement s    = (XmlElement)settingNode;
+                        string     id   = s.GetAttribute("id");
+                        string     type = s.GetAttribute("type");
+                        if (type == "slider")   { ApplySliderSetting(monitor, s, id);   continue; }
+                        if (type == "checkbox") { ApplyCheckboxSetting(monitor, s, id); continue; }
+                    }
+                    return monitor._boolSettings.Count > 0 ? monitor : null;
+                }
+
+                private static void ApplySliderSetting(DrivetrainMonitor monitor, XmlElement s, string id)
+                {
+                    SettingsSlider slider;
+                    if (!_sliderSettings.TryGetValue(id, out slider)) return;
+
+                    System.Reflection.FieldInfo fi = ResolveDrivetrainField(monitor.Drivetrain, id, "<Setting id='" + id + "'>", includeNonPublic: false);
+                    if (fi == null) return;
+
+                    fi.SetValue(monitor.Drivetrain, (float)slider.GetValue());
+                }
+
+                private static void ApplyCheckboxSetting(DrivetrainMonitor monitor, XmlElement s, string id)
+                {
+                    SettingsCheckBox cb;
+                    if (!_checkboxSettings.TryGetValue(id, out cb)) return;
+
+                    System.Reflection.FieldInfo fi = ResolveDrivetrainField(monitor.Drivetrain, id, "<Setting id='" + id + "'>", includeNonPublic: false);
+                    if (fi == null) return;
+
+                    XmlNodeList condNodes = s.SelectNodes("Condition");
+                    if (condNodes.Count == 0) { fi.SetValue(monitor.Drivetrain, cb.GetValue()); return; }
+
+                    monitor._boolSettings.Add(BuildConditionedSetting(condNodes, id, cb, fi));
+                }
+
+                private static DrivetrainBoolSetting BuildConditionedSetting(XmlNodeList condNodes, string id,
+                    SettingsCheckBox cb, System.Reflection.FieldInfo field)
+                {
+                    DrivetrainBoolSetting boolSetting = new DrivetrainBoolSetting { Checkbox = cb, Field = field };
+                    foreach (XmlNode condNode in condNodes)
+                    {
+                        ICondition cond = BuildCondition((XmlElement)condNode, id);
+                        if (cond == null) continue;
+                        cond.Evaluate();
+                        if (!cond.IsResolved)
+                            ModConsole.Log(cond.LogPrefix + " not resolved at load — will retry at runtime.");
+                        boolSetting.Conditions.Add(cond);
+                    }
+                    return boolSetting;
+                }
+
+                private static ICondition BuildCondition(XmlElement condEl, string id)
+                {
+                    string path     = condEl.GetAttribute("path");
+                    string varFloat = condEl.GetAttribute("varFloat");
+                    string fsmBool  = condEl.GetAttribute("fsmBool");
+
+                    if (!string.IsNullOrEmpty(varFloat)) return BuildComponentFloatCondition(condEl, path, id);
+                    if (!string.IsNullOrEmpty(fsmBool))  return BuildFsmBoolCondition(condEl, path, id);
+
+                    ModConsole.Error("MyMWCMod1: Condition for '" + id + "' has neither fsmBool nor varFloat — condition skipped.");
                     return null;
                 }
-                return new FsmBoolCondition(path, fsmName, fsmBool, id + ".Condition");
-            }
 
-            private static ICondition BuildComponentFloatCondition(XmlElement condEl, string path, string id)
-            {
-                string compName = condEl.GetAttribute("CompName");
-                string varFloat = condEl.GetAttribute("varFloat");
-                float  minFloat;
-                if (string.IsNullOrEmpty(path) || string.IsNullOrEmpty(compName) || string.IsNullOrEmpty(varFloat)
-                    || !XmlAttr.TryFloat(condEl, "minFloat", out minFloat))
+                private static ICondition BuildFsmBoolCondition(XmlElement condEl, string path, string id)
                 {
-                    ModConsole.Error("MyMWCMod1: ComponentFloat condition for '" + id + "' is missing required attributes — condition skipped.");
-                    return null;
+                    string fsmName = condEl.GetAttribute("fsmName");
+                    string fsmBool = condEl.GetAttribute("fsmBool");
+                    if (string.IsNullOrEmpty(path) || string.IsNullOrEmpty(fsmName) || string.IsNullOrEmpty(fsmBool))
+                    {
+                        ModConsole.Error("MyMWCMod1: FsmBool condition for '" + id + "' is missing required attributes — condition skipped.");
+                        return null;
+                    }
+                    return new FsmBoolCondition(path, fsmName, fsmBool, id + ".Condition");
                 }
-                return new ComponentFloatCondition(path, compName, varFloat, minFloat, id + ".Condition");
+
+                private static ICondition BuildComponentFloatCondition(XmlElement condEl, string path, string id)
+                {
+                    string compName = condEl.GetAttribute("CompName");
+                    string varFloat = condEl.GetAttribute("varFloat");
+                    float  minFloat;
+                    if (string.IsNullOrEmpty(path) || string.IsNullOrEmpty(compName) || string.IsNullOrEmpty(varFloat)
+                        || !XmlAttr.TryFloat(condEl, "minFloat", out minFloat))
+                    {
+                        ModConsole.Error("MyMWCMod1: ComponentFloat condition for '" + id + "' is missing required attributes — condition skipped.");
+                        return null;
+                    }
+                    return new ComponentFloatCondition(path, compName, varFloat, minFloat, id + ".Condition");
+                }
             }
         }
 
@@ -1182,7 +1180,7 @@ namespace MyMWCMod1
         private void Mod_Settings()
         {
             EnsureXmlExists();
-            DrivetrainMonitor.RegisterSettings(XmlPath);
+            DrivetrainMonitor.XmlLoader.RegisterSettings(XmlPath);
             _pivotResetKey = Keybind.Add("pivotReset", "Reset Player Pivot", KeyCode.Backslash);
             _pivotSaveKey  = Keybind.Add("savePivot",  "Save Player Pivot",  KeyCode.Backslash, KeyCode.LeftControl);
             Settings.AddButton("Dump CORRIS FSM to CSV",         () => GameObjectCsvDumper.Dump("CORRIS"));
@@ -1268,10 +1266,10 @@ namespace MyMWCMod1
                 XmlElement drivetrainEl = (XmlElement)el.SelectSingleNode("Drivetrain");
                 if (drivetrainEl != null)
                 {
-                    Drivetrain drivetrain = DrivetrainMonitor.ResolveDrivetrain(goPath, label);
+                    Drivetrain drivetrain = DrivetrainMonitor.XmlLoader.ResolveDrivetrain(goPath, label);
                     if (drivetrain != null)
                     {
-                        DrivetrainMonitor dtm = DrivetrainMonitor.LoadFromXml(drivetrainEl, drivetrain, label);
+                        DrivetrainMonitor dtm = DrivetrainMonitor.XmlLoader.LoadFromXml(drivetrainEl, drivetrain, label);
                         DrivetrainMonitor.Add(dtm);
                         if (dtm != null) drivetrainCount++;
 
