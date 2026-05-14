@@ -766,13 +766,12 @@ namespace MyMWCMod1
                 public void  TryResolve() { _lookup.TryResolve(); }
             }
 
-            public class GearEntry
+            public class RatioRef
             {
                 public float            Fallback;
                 public DeferredFsmFloat FsmRatio;
-                public bool?            WriteBackOverride;
 
-                public float ResolveRatio()
+                public float Resolve()
                 {
                     if (FsmRatio != null)
                     {
@@ -781,6 +780,12 @@ namespace MyMWCMod1
                     }
                     return Fallback;
                 }
+            }
+
+            public class GearEntry
+            {
+                public RatioRef Ratio;
+                public bool?    WriteBackOverride;
             }
 
             private string                     _goName;
@@ -800,7 +805,7 @@ namespace MyMWCMod1
 
             private DeferredFsmFloat _vehicleMass;
             private DeferredFsmFloat _wheelRadius;
-            private DeferredFsmFloat _finalGear;
+            private RatioRef         _finalGear;
 
             private bool    _writeBack;
             private KeyCode _keyCode;
@@ -859,7 +864,7 @@ namespace MyMWCMod1
                     DeferredFsmFloat wheelRadius = LoadDeferredFloat(el, "wheelRadius", goName);
                     if (vehicleMass == null || wheelRadius == null) return null;
 
-                    DeferredFsmFloat finalGear = LoadOptionalDeferredFloat(el, "RearAxle", goName);
+                    RatioRef finalGear = LoadRearAxle(el, goName);
 
                     Dictionary<int, GearEntry> gearEntries = LoadGearEntries(el, goName);
                     if (gearEntries == null) return null;
@@ -933,20 +938,29 @@ namespace MyMWCMod1
                     return result;
                 }
 
-                public static DeferredFsmFloat LoadOptionalDeferredFloat(XmlElement el, string tag, string goName)
+                public static RatioRef LoadRearAxle(XmlElement el, string goName)
                 {
-                    XmlElement child = (XmlElement)el.SelectSingleNode(tag);
-                    if (child == null) return null;
-                    string path = child.GetAttribute("path");
-                    string fsmName = child.GetAttribute("fsmName");
+                    RatioRef result = new RatioRef { Fallback = 1f };
+                    XmlElement child = (XmlElement)el.SelectSingleNode("RearAxle");
+                    if (child == null) return result;
+
+                    float parsed;
+                    if (XmlAttr.TryFloat(child, "ratio", out parsed)) result.Fallback = parsed;
+
+                    string path     = child.GetAttribute("path");
+                    string fsmName  = child.GetAttribute("fsmName");
                     string fsmFloat = child.GetAttribute("fsmFloat");
-                    if (string.IsNullOrEmpty(path) || string.IsNullOrEmpty(fsmName) || string.IsNullOrEmpty(fsmFloat))
+                    bool hasFsm = !string.IsNullOrEmpty(path) && !string.IsNullOrEmpty(fsmName) && !string.IsNullOrEmpty(fsmFloat);
+                    bool anyFsm = !string.IsNullOrEmpty(path) || !string.IsNullOrEmpty(fsmName) || !string.IsNullOrEmpty(fsmFloat);
+                    if (hasFsm)
                     {
-                        ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' <" + tag + "> missing path/fsmName/fsmFloat — ignored.");
-                        return null;
+                        result.FsmRatio = new DeferredFsmFloat(path, fsmName, fsmFloat);
+                        result.FsmRatio.TryResolve();
                     }
-                    DeferredFsmFloat result = new DeferredFsmFloat(path, fsmName, fsmFloat);
-                    result.TryResolve();
+                    else if (anyFsm)
+                    {
+                        ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' <RearAxle> partial FSM lookup (path/fsmName/fsmFloat) — using static ratio only.");
+                    }
                     return result;
                 }
 
@@ -974,13 +988,13 @@ namespace MyMWCMod1
                             continue;
                         }
 
-                        GearEntry entry = new GearEntry { Fallback = ratio };
+                        GearEntry entry = new GearEntry { Ratio = new RatioRef { Fallback = ratio } };
 
                         string fsmFloat = gearEl.GetAttribute("fsmFloat");
                         if (gearboxHasFsm && !string.IsNullOrEmpty(fsmFloat))
                         {
-                            entry.FsmRatio = new DeferredFsmFloat(gearboxPath, gearboxFsmName, fsmFloat);
-                            entry.FsmRatio.TryResolve();
+                            entry.Ratio.FsmRatio = new DeferredFsmFloat(gearboxPath, gearboxFsmName, fsmFloat);
+                            entry.Ratio.FsmRatio.TryResolve();
                         }
 
                         string mode = gearEl.GetAttribute("mode");
@@ -1016,13 +1030,8 @@ namespace MyMWCMod1
                 GearEntry entry;
                 if (!_gearEntries.TryGetValue(gear, out entry)) { _initialized = false; return; }
 
-                float gearRatio = entry.ResolveRatio();
-                float finalGear = 1f;
-                if (_finalGear != null)
-                {
-                    _finalGear.TryResolve();
-                    if (_finalGear.IsResolved) finalGear = _finalGear.Value;
-                }
+                float gearRatio = entry.Ratio.Resolve();
+                float finalGear = _finalGear.Resolve();
                 float baseRatio = gearRatio * finalGear;
                 bool  writeBack = entry.WriteBackOverride.HasValue ? entry.WriteBackOverride.Value : _writeBack;
 
@@ -1456,7 +1465,7 @@ namespace MyMWCMod1
       <TorqueConverter mode=""on"" KeyCode=""KeypadEnter"" RPMStall=""1600"" rStall=""2"">
         <vehicleMass path=""CORRIS/Simulation/CarData"" fsmName=""GetWeight"" fsmFloat=""Mass"" />
         <wheelRadius path=""CORRIS/PhysicalAssemblies/REAR/AxleDamagePivot/RearWheelsStatic/WHEELc_RL/tire/VINP_WheelRL"" fsmName=""Data"" fsmFloat=""TireRadius"" />
-        <RearAxle    path=""CORRIS/PhysicalAssemblies/REAR/AxleDamagePivot/RearWheelsStatic/WHEELc_RL/wheel_spindle_rl/VINP_RearAxle"" fsmName=""Data"" fsmFloat=""FinalGear"" />
+        <RearAxle    path=""CORRIS/PhysicalAssemblies/REAR/AxleDamagePivot/RearWheelsStatic/WHEELc_RL/wheel_spindle_rl/VINP_RearAxle"" fsmName=""Data"" fsmFloat=""FinalGear"" ratio=""4.44"" />
         <Gearbox     path=""CORRIS/MotorPivot/MassCenter/Block/VINP_Gearbox"" fsmName=""Data"">
           <GearRatio gear=""0"" fsmFloat=""RatioR"" ratio=""2.1""  mode=""display"" />
           <GearRatio gear=""2"" fsmFloat=""Ratio1"" ratio=""2.39"" mode=""on"" />

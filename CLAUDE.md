@@ -138,7 +138,7 @@ Multiple `<Condition>` elements are AND-ed. If an object is not found at load ti
 <TorqueConverter mode="on" KeyCode="KeypadEnter" RPMStall="1600" rStall="2">
   <vehicleMass path="CORRIS/Simulation/CarData" fsmName="GetWeight" fsmFloat="Mass" />
   <wheelRadius path="CORRIS/PhysicalAssemblies/REAR/AxleDamagePivot/RearWheelsStatic/WHEELc_RL/tire/VINP_WheelRL" fsmName="Data" fsmFloat="TireRadius" />
-  <RearAxle    path="CORRIS/PhysicalAssemblies/REAR/AxleDamagePivot/RearWheelsStatic/WHEELc_RL/wheel_spindle_rl/VINP_RearAxle" fsmName="Data" fsmFloat="FinalGear" />
+  <RearAxle    path="CORRIS/PhysicalAssemblies/REAR/AxleDamagePivot/RearWheelsStatic/WHEELc_RL/wheel_spindle_rl/VINP_RearAxle" fsmName="Data" fsmFloat="FinalGear" ratio="4.44" />
   <Gearbox     path="CORRIS/MotorPivot/MassCenter/Block/VINP_Gearbox" fsmName="Data">
     <GearRatio gear="0" fsmFloat="RatioR" ratio="2.1"  mode="display" />
     <GearRatio gear="2" fsmFloat="Ratio1" ratio="2.39" mode="on" />
@@ -154,7 +154,7 @@ Multiple `<Condition>` elements are AND-ed. If an object is not found at load ti
 - `KeyCode` (optional): Unity `KeyCode` enum name (case-insensitive) — press at runtime to toggle the TC-level mode between `on` and `display`. Gears with an explicit per-gear `mode` ignore the toggle. Omit to disable toggle. Has no effect when initial `mode` is `off` (instance not loaded).
 - `<vehicleMass path="..." fsmName="..." fsmFloat="...">`: lazily resolved FSM float for vehicle mass (kg) — used to compute I_eff = m × r_wheel² / effectiveRatio².
 - `<wheelRadius path="..." fsmName="..." fsmFloat="...">`: lazily resolved FSM float for wheel radius (m).
-- `<RearAxle path="..." fsmName="..." fsmFloat="..." />` (optional): lazily resolved FSM float for the rear-axle final drive (`FinalGear`). When present and resolved, the effective drivetrain ratio is `gearRatio × FinalGear`. When absent or unresolved, `FinalGear` defaults to `1.0` (so legacy XML where `ratio` already includes the final drive keeps working).
+- `<RearAxle path="..." fsmName="..." fsmFloat="..." ratio="..." />` (element optional; each attribute also optional): provides `FinalGear` for the effective drivetrain ratio (`gearRatio × FinalGear`). `ratio` is a static fallback used when the FSM variable is not (yet) resolved or when no FSM lookup is configured — supply a known-good value so the simulator behaves correctly before/without FSM resolution. When `path` + `fsmName` + `fsmFloat` are all provided, the live FSM value overrides the fallback once resolved; partial FSM attributes log an error and the element degrades to static-only. When the element is absent entirely, `FinalGear` defaults to `1.0` (legacy XML where `ratio` already includes the final drive keeps working).
 - All three FSM lookups are resolved via staged GO → FSM → variable lookup; resolution is retried every tick until successful. Integration and write-back are suppressed until `vehicleMass` and `wheelRadius` are resolved.
 - `<Gearbox path="..." fsmName="...">`: required wrapper containing one `<GearRatio>` per active gear. Active gears only; other gears skip the simulation tick. The optional `path` and `fsmName` attributes on `<Gearbox>` point at a PlayMaker FSM that exposes per-gear ratio variables; when omitted, per-gear `fsmFloat` is ignored and every gear uses its static `ratio` fallback.
 - `<GearRatio gear="N" ratio="V" fsmFloat="..." mode="on|display" />`:
