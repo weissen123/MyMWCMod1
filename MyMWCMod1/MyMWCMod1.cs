@@ -746,37 +746,24 @@ namespace MyMWCMod1
 
         private class TorqueConverterSimulator
         {
-            private const float OmegaFloor          = 0.01f;  // rad/s — clamp to avoid division by zero
-            private const float LockupNu            = 0.9f;   // ν above which R(ν) saturates to 1.0
-            private const float MinEngageThrottle   = 0.15f;  // TC inactive below this throttle
-            private const float MinThrottleDelta    = -0.05f; // TC disengages if throttle drops faster than this per tick
-            private const float MinEngageRatio      = 1.05f;  // TC inactive once R(ν) falls below this
-
-            public class DeferredFsmFloat
-            {
-                private readonly FsmFloatLookup _lookup;
-
-                public DeferredFsmFloat(string path, string fsmName, string varName)
-                {
-                    _lookup = new FsmFloatLookup(path, fsmName, varName, "MyMWCMod1: TC");
-                }
-
-                public bool  IsResolved => _lookup.IsResolved;
-                public float Value      => _lookup.Resolved.Value;
-                public void  TryResolve() { _lookup.TryResolve(); }
-            }
+            private const float  OmegaFloor        = 0.01f;  // rad/s — clamp to avoid division by zero
+            private const float  LockupNu          = 0.9f;   // ν above which R(ν) saturates to 1.0
+            private const float  MinEngageThrottle = 0.15f;  // TC inactive below this throttle
+            private const float  MinThrottleDelta  = -0.05f; // TC disengages if throttle drops faster than this per tick
+            private const float  MinEngageRatio    = 1.05f;  // TC inactive once R(ν) falls below this
+            private const string TcLogLabel        = "MyMWCMod1: TC";
 
             public class RatioRef
             {
-                public float            Fallback;
-                public DeferredFsmFloat FsmRatio;
+                public float          Fallback;
+                public FsmFloatLookup FsmRatio;
 
                 public float Resolve()
                 {
                     if (FsmRatio != null)
                     {
                         FsmRatio.TryResolve();
-                        if (FsmRatio.IsResolved) return FsmRatio.Value;
+                        if (FsmRatio.IsResolved) return FsmRatio.Resolved.Value;
                     }
                     return Fallback;
                 }
@@ -803,9 +790,9 @@ namespace MyMWCMod1
             private System.Reflection.FieldInfo _fFrictionTorque;
             private System.Reflection.FieldInfo _fThrottle;
 
-            private DeferredFsmFloat _vehicleMass;
-            private DeferredFsmFloat _wheelRadius;
-            private RatioRef         _finalGear;
+            private FsmFloatLookup _vehicleMass;
+            private FsmFloatLookup _wheelRadius;
+            private RatioRef       _finalGear;
 
             private bool    _writeBack;
             private KeyCode _keyCode;
@@ -860,8 +847,8 @@ namespace MyMWCMod1
 
                     KeyCode keyCode = ParseKeyCode(el, goName);
 
-                    DeferredFsmFloat vehicleMass = LoadDeferredFloat(el, "vehicleMass", goName);
-                    DeferredFsmFloat wheelRadius = LoadDeferredFloat(el, "wheelRadius", goName);
+                    FsmFloatLookup vehicleMass = LoadDeferredFloat(el, "vehicleMass", goName);
+                    FsmFloatLookup wheelRadius = LoadDeferredFloat(el, "wheelRadius", goName);
                     if (vehicleMass == null || wheelRadius == null) return null;
 
                     RatioRef finalGear = LoadRearAxle(el, goName);
@@ -924,7 +911,7 @@ namespace MyMWCMod1
                     return KeyCode.None;
                 }
 
-                public static DeferredFsmFloat LoadDeferredFloat(XmlElement el, string tag, string goName)
+                public static FsmFloatLookup LoadDeferredFloat(XmlElement el, string tag, string goName)
                 {
                     XmlElement child = (XmlElement)el.SelectSingleNode(tag);
                     if (child == null)
@@ -932,8 +919,8 @@ namespace MyMWCMod1
                         ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' missing <" + tag + "> — skipped.");
                         return null;
                     }
-                    DeferredFsmFloat result = new DeferredFsmFloat(
-                        child.GetAttribute("path"), child.GetAttribute("fsmName"), child.GetAttribute("fsmFloat"));
+                    FsmFloatLookup result = new FsmFloatLookup(
+                        child.GetAttribute("path"), child.GetAttribute("fsmName"), child.GetAttribute("fsmFloat"), TcLogLabel);
                     result.TryResolve();
                     return result;
                 }
@@ -954,7 +941,7 @@ namespace MyMWCMod1
                     bool anyFsm = !string.IsNullOrEmpty(path) || !string.IsNullOrEmpty(fsmName) || !string.IsNullOrEmpty(fsmFloat);
                     if (hasFsm)
                     {
-                        result.FsmRatio = new DeferredFsmFloat(path, fsmName, fsmFloat);
+                        result.FsmRatio = new FsmFloatLookup(path, fsmName, fsmFloat, TcLogLabel);
                         result.FsmRatio.TryResolve();
                     }
                     else if (anyFsm)
@@ -993,7 +980,7 @@ namespace MyMWCMod1
                         string fsmFloat = gearEl.GetAttribute("fsmFloat");
                         if (gearboxHasFsm && !string.IsNullOrEmpty(fsmFloat))
                         {
-                            entry.Ratio.FsmRatio = new DeferredFsmFloat(gearboxPath, gearboxFsmName, fsmFloat);
+                            entry.Ratio.FsmRatio = new FsmFloatLookup(gearboxPath, gearboxFsmName, fsmFloat, TcLogLabel);
                             entry.Ratio.FsmRatio.TryResolve();
                         }
 
@@ -1074,8 +1061,8 @@ namespace MyMWCMod1
 
                 if (writeBack && tcActive)
                 {
-                    float r    = _wheelRadius.Value;
-                    float iEff = _vehicleMass.Value * r * r / (baseRatio * baseRatio);
+                    float r    = _wheelRadius.Resolved.Value;
+                    float iEff = _vehicleMass.Resolved.Value * r * r / (baseRatio * baseRatio);
                     float dt   = UnityEngine.Time.fixedDeltaTime;
                     _omegaOut += tOut / iEff * dt;
                     _omegaOut  = Math.Max(OmegaFloor, _omegaOut);
