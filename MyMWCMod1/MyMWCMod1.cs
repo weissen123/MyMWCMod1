@@ -122,13 +122,22 @@ namespace MyMWCMod1
 
         private class ComponentMonitor
         {
-            private const float DefaultFactor = 0.01f; // 1% of normal wear rate; used when XML omits the factor attribute
-
             public string        Label;
             public FsmFloat      Value;
             public float         Previous;
             public WearDirection Direction;
             public float         Factor;
+
+            private static readonly List<ComponentMonitor> _instances = new List<ComponentMonitor>();
+
+            public static void Reset() { _instances.Clear(); }
+            public static void Add(ComponentMonitor monitor) { if (monitor != null) _instances.Add(monitor); }
+
+            public static void ApplyAll()
+            {
+                foreach (ComponentMonitor m in _instances)
+                    m.ApplyReduction();
+            }
 
             public void ApplyReduction()
             {
@@ -144,47 +153,41 @@ namespace MyMWCMod1
                 Previous = Value.Value;
             }
 
-            public static ComponentMonitor LoadFromXml(XmlElement el, string label, string goPath)
+            public static class XmlLoader
             {
-                string fsmName  = el.GetAttribute("fsmName");
-                string fsmFloat = el.GetAttribute("fsmFloat");
+                private const float DefaultFactor = 0.01f; // 1% of normal wear rate; used when XML omits the factor attribute
 
-                WearDirection direction = el.GetAttribute("direction") == "Increases"
-                    ? WearDirection.Increases
-                    : WearDirection.Decreases;
-
-                float factor = XmlAttr.Float(el, "factor", DefaultFactor);
-
-                FsmFloat value = FindFsmFloat(goPath, fsmName, fsmFloat, label);
-                if (value == null) return null;
-
-                return new ComponentMonitor
+                public static ComponentMonitor LoadFromXml(XmlElement el, string label, string goPath)
                 {
-                    Label     = label,
-                    Value     = value,
-                    Previous  = value.Value,
-                    Direction = direction,
-                    Factor    = factor
-                };
-            }
+                    string fsmName  = el.GetAttribute("fsmName");
+                    string fsmFloat = el.GetAttribute("fsmFloat");
 
-            private static FsmFloat FindFsmFloat(string objectName, string fsmName, string floatName, string logLabel)
-            {
-                FsmFloat result = new FsmFloatLookup(objectName, fsmName, floatName, logLabel).TryResolve();
-                if (result == null)
-                    ModConsole.Error($"FAILED TO FIND FsmFloat '{floatName}' in FSM '{fsmName}' on {logLabel}!!!");
-                return result;
-            }
+                    WearDirection direction = el.GetAttribute("direction") == "Increases"
+                        ? WearDirection.Increases
+                        : WearDirection.Decreases;
 
-            private static readonly List<ComponentMonitor> _instances = new List<ComponentMonitor>();
+                    float factor = XmlAttr.Float(el, "factor", DefaultFactor);
 
-            public static void Reset() { _instances.Clear(); }
-            public static void Add(ComponentMonitor monitor) { if (monitor != null) _instances.Add(monitor); }
+                    FsmFloat value = FindFsmFloat(goPath, fsmName, fsmFloat, label);
+                    if (value == null) return null;
 
-            public static void ApplyAll()
-            {
-                foreach (ComponentMonitor m in _instances)
-                    m.ApplyReduction();
+                    return new ComponentMonitor
+                    {
+                        Label     = label,
+                        Value     = value,
+                        Previous  = value.Value,
+                        Direction = direction,
+                        Factor    = factor
+                    };
+                }
+
+                private static FsmFloat FindFsmFloat(string objectName, string fsmName, string floatName, string logLabel)
+                {
+                    FsmFloat result = new FsmFloatLookup(objectName, fsmName, floatName, logLabel).TryResolve();
+                    if (result == null)
+                        ModConsole.Error($"FAILED TO FIND FsmFloat '{floatName}' in FSM '{fsmName}' on {logLabel}!!!");
+                    return result;
+                }
             }
         }
 
@@ -1287,7 +1290,7 @@ namespace MyMWCMod1
 
                 if (isContainer) continue;
 
-                ComponentMonitor monitor = ComponentMonitor.LoadFromXml(el, label, goPath);
+                ComponentMonitor monitor = ComponentMonitor.XmlLoader.LoadFromXml(el, label, goPath);
                 ComponentMonitor.Add(monitor);
                 if (monitor != null) componentCount++;
             }
