@@ -122,6 +122,8 @@ namespace MyMWCMod1
 
         private class ComponentMonitor
         {
+            private const float DefaultFactor = 0.01f; // 1% of normal wear rate; used when XML omits the factor attribute
+
             public string        Label;
             public FsmFloat      Value;
             public float         Previous;
@@ -151,7 +153,7 @@ namespace MyMWCMod1
                     ? WearDirection.Increases
                     : WearDirection.Decreases;
 
-                float factor = XmlAttr.Float(el, "factor", 0.01f);
+                float factor = XmlAttr.Float(el, "factor", DefaultFactor);
 
                 FsmFloat value = FindFsmFloat(goPath, fsmName, fsmFloat, label);
                 if (value == null) return null;
@@ -295,6 +297,8 @@ namespace MyMWCMod1
 
         private class DrivetrainMonitor
         {
+            private const float ConditionRetryInterval = 1f; // seconds between condition-resolution attempts
+
             private interface ICondition
             {
                 bool   IsResolved { get; }
@@ -304,7 +308,6 @@ namespace MyMWCMod1
 
             private class FsmBoolCondition : ICondition
             {
-                private const float RetryInterval = 1f; // seconds between resolution attempts
 
                 private readonly FsmBoolLookup _lookup;
                 private readonly string        _varName;
@@ -325,7 +328,7 @@ namespace MyMWCMod1
                 {
                     if (_lookup.IsResolved) return _lookup.Resolved.Value;
                     if (UnityEngine.Time.fixedTime < _nextRetryTime) return false;
-                    _nextRetryTime = UnityEngine.Time.fixedTime + RetryInterval;
+                    _nextRetryTime = UnityEngine.Time.fixedTime + ConditionRetryInterval;
                     FsmBool r = _lookup.TryResolve();
                     return r != null && r.Value;
                 }
@@ -338,8 +341,6 @@ namespace MyMWCMod1
                 private readonly string _fieldName;
                 private readonly float  _minFloat;
                 private readonly string _logLabel;
-
-                private const float RetryInterval = 1f;
 
                 private Component                   _cachedComp;
                 private System.Reflection.FieldInfo _cachedField;
@@ -360,7 +361,7 @@ namespace MyMWCMod1
 
                     // Rate-limit retries to once per second
                     if (UnityEngine.Time.fixedTime < _nextRetryTime) return false;
-                    _nextRetryTime = UnityEngine.Time.fixedTime + RetryInterval;
+                    _nextRetryTime = UnityEngine.Time.fixedTime + ConditionRetryInterval;
 
                     // Stage 1: find the GameObject and component
                     if (_cachedComp == null)
@@ -571,6 +572,8 @@ namespace MyMWCMod1
 
         private class DrivetrainStatisticsCollector
         {
+            private const float SampleIntervalSeconds = 0.1f; // 10 Hz CSV sample rate
+
             private string                        _goName;
             private string                        _fileNameBase;
             private KeyCode                       _keyCode;
@@ -695,7 +698,7 @@ namespace MyMWCMod1
             {
                 if (!_collecting) return;
                 if (Time.fixedTime < _nextCollectTime) return;
-                _nextCollectTime = Time.fixedTime + 0.1f;
+                _nextCollectTime = Time.fixedTime + SampleIntervalSeconds;
                 var ic = System.Globalization.CultureInfo.InvariantCulture;
                 _csv.Append((Time.fixedTime - _startTime).ToString("G", ic));
                 foreach (System.Reflection.FieldInfo fi in _fields)
@@ -736,6 +739,12 @@ namespace MyMWCMod1
 
         private class TorqueConverterSimulator
         {
+            private const float OmegaFloor          = 0.01f;  // rad/s — clamp to avoid division by zero
+            private const float LockupNu            = 0.9f;   // ν above which R(ν) saturates to 1.0
+            private const float MinEngageThrottle   = 0.15f;  // TC inactive below this throttle
+            private const float MinThrottleDelta    = -0.05f; // TC disengages if throttle drops faster than this per tick
+            private const float MinEngageRatio      = 1.05f;  // TC inactive once R(ν) falls below this
+
             public class DeferredFsmFloat
             {
                 private readonly FsmFloatLookup _lookup;
@@ -943,14 +952,14 @@ namespace MyMWCMod1
                 float throttle  = (float)_fThrottle.GetValue(_drivetrain);
                 if (!_initialized)
                 {
-                    _omegaOut     = Math.Max(0.01f, diffSpeed * baseRatio);
+                    _omegaOut     = Math.Max(OmegaFloor, diffSpeed * baseRatio);
                     _lastGear     = gear;
                     _lastThrottle = throttle;
                     _initialized  = true;
                 }
                 else if (gear != _lastGear)
                 {
-                    _omegaOut = Math.Max(0.01f, diffSpeed * baseRatio);
+                    _omegaOut = Math.Max(OmegaFloor, diffSpeed * baseRatio);
                     _lastGear = gear;
                 }
                 _lastThrottle = throttle;
@@ -960,14 +969,16 @@ namespace MyMWCMod1
                 float frictionTorque = (float)_fFrictionTorque.GetValue(_drivetrain);
                 float origFdr        = (float)_fFinalDriveRatio.GetValue(_drivetrain);
 
-                float nu       = Math.Max(0.01f, _omegaOut) / Math.Max(0.01f, _omegaIn);
+                float nu       = Math.Max(OmegaFloor, _omegaOut) / Math.Max(OmegaFloor, _omegaIn);
                 float wRatio   = _omegaIn / _wStall;
                 float tDrag    = torque * wRatio * wRatio * (1f - nu);
-                float R        = nu < 0.9f ? _rStall - (_rStall - 1f) * (nu / 0.9f) : 1.0f;
+                float R        = nu < LockupNu ? _rStall - (_rStall - 1f) * (nu / LockupNu) : 1.0f;
                 float tOut     = tDrag * R;
                 _vehicleMass.TryResolve();
                 _wheelRadius.TryResolve();
-                bool  tcActive = throttle >= 0.15f && (throttle - _lastThrottle) > -0.05f && R >= 1.05f
+                bool  tcActive = throttle >= MinEngageThrottle
+                                 && (throttle - _lastThrottle) > MinThrottleDelta
+                                 && R >= MinEngageRatio
                                  && _vehicleMass.IsResolved && _wheelRadius.IsResolved;
 
                 if (_writeBack && tcActive)
@@ -976,14 +987,14 @@ namespace MyMWCMod1
                     float iEff = _vehicleMass.Value * r * r / (baseRatio * baseRatio);
                     float dt   = UnityEngine.Time.fixedDeltaTime;
                     _omegaOut += tOut / iEff * dt;
-                    _omegaOut  = Math.Max(0.01f, _omegaOut);
+                    _omegaOut  = Math.Max(OmegaFloor, _omegaOut);
                 }
                 else
                 {
-                    _omegaOut = Math.Max(0.01f, diffSpeed * baseRatio);
+                    _omegaOut = Math.Max(OmegaFloor, diffSpeed * baseRatio);
                 }
 
-                float nuNew = _omegaOut / Math.Max(0.01f, _omegaIn);
+                float nuNew = _omegaOut / Math.Max(OmegaFloor, _omegaIn);
                 if (_writeBack && tcActive)
                 {
                     _fDifferentialSpeed.SetValue(_drivetrain, _omegaOut / baseRatio);
