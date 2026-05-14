@@ -849,11 +849,6 @@ namespace MyMWCMod1
                     Dictionary<int, float> gearRatios = LoadGearRatios(el, goName);
                     if (gearRatios == null) return null;
 
-                    string[] fieldNames = { "engineAngularVelo", "differentialSpeed", "gear", "netTorque",
-                                            "finalDriveRatio",   "torque",            "frictionTorque", "throttle" };
-                    Dictionary<string, System.Reflection.FieldInfo> fields = ResolveFields(drivetrain.GetType(), fieldNames, goName);
-                    if (fields == null) return null;
-
                     return new TorqueConverterSimulator
                     {
                         _goName             = goName,
@@ -865,14 +860,14 @@ namespace MyMWCMod1
                         _vehicleMass        = vehicleMass,
                         _wheelRadius        = wheelRadius,
                         _gearRatios         = gearRatios,
-                        _fEngineAngularVelo = fields["engineAngularVelo"],
-                        _fDifferentialSpeed = fields["differentialSpeed"],
-                        _fGear              = fields["gear"],
-                        _fNetTorque         = fields["netTorque"],
-                        _fFinalDriveRatio   = fields["finalDriveRatio"],
-                        _fTorque            = fields["torque"],
-                        _fFrictionTorque    = fields["frictionTorque"],
-                        _fThrottle          = fields["throttle"],
+                        _fEngineAngularVelo = ResolveField(drivetrain, "engineAngularVelo", goName),
+                        _fDifferentialSpeed = ResolveField(drivetrain, "differentialSpeed", goName),
+                        _fGear              = ResolveField(drivetrain, "gear",              goName),
+                        _fNetTorque         = ResolveField(drivetrain, "netTorque",         goName),
+                        _fFinalDriveRatio   = ResolveField(drivetrain, "finalDriveRatio",   goName),
+                        _fTorque            = ResolveField(drivetrain, "torque",            goName),
+                        _fFrictionTorque    = ResolveField(drivetrain, "frictionTorque",    goName),
+                        _fThrottle          = ResolveField(drivetrain, "throttle",          goName),
                     };
                 }
 
@@ -954,23 +949,15 @@ namespace MyMWCMod1
                     return gearRatios;
                 }
 
-                public static Dictionary<string, System.Reflection.FieldInfo> ResolveFields(Type dt, string[] names, string goName)
+                public static System.Reflection.FieldInfo ResolveField(Drivetrain drivetrain, string name, string goName)
                 {
                     var bf = System.Reflection.BindingFlags.Public   |
                              System.Reflection.BindingFlags.NonPublic |
                              System.Reflection.BindingFlags.Instance;
-                    var fields = new Dictionary<string, System.Reflection.FieldInfo>();
-                    foreach (string name in names)
-                    {
-                        System.Reflection.FieldInfo fi = dt.GetField(name, bf);
-                        if (fi == null)
-                        {
-                            ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' could not resolve field '" + name + "' — skipped.");
-                            return null;
-                        }
-                        fields[name] = fi;
-                    }
-                    return fields;
+                    System.Reflection.FieldInfo fi = drivetrain.GetType().GetField(name, bf);
+                    if (fi == null)
+                        ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' could not resolve field '" + name + "'.");
+                    return fi;
                 }
             } // XmlLoader
 
