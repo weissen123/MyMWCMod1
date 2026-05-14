@@ -1232,7 +1232,11 @@ namespace MyMWCMod1
             XmlDocument doc = new XmlDocument();
             doc.Load(xmlPath);
 
-            int componentCount = 0;
+            int componentCount  = 0;
+            int drivetrainCount = 0;
+            int statisticsCount = 0;
+            int torqueConvCount = 0;
+            int pivotCount      = 0;
             foreach (XmlNode node in doc.DocumentElement.ChildNodes)
             {
                 if (node.NodeType != XmlNodeType.Element) continue;
@@ -1246,7 +1250,9 @@ namespace MyMWCMod1
                 XmlElement pivotEl = (XmlElement)el.SelectSingleNode("PivotReset");
                 if (pivotEl != null)
                 {
-                    PivotResetConfig.Add(PivotResetConfig.LoadFromXml(pivotEl));
+                    PivotResetConfig pivot = PivotResetConfig.LoadFromXml(pivotEl);
+                    PivotResetConfig.Add(pivot);
+                    if (pivot != null) pivotCount++;
                     isContainer = true;
                 }
 
@@ -1256,17 +1262,25 @@ namespace MyMWCMod1
                     Drivetrain drivetrain = DrivetrainMonitor.ResolveDrivetrain(goPath, label);
                     if (drivetrain != null)
                     {
-                        DrivetrainMonitor.Add(DrivetrainMonitor.LoadFromXml(drivetrainEl, drivetrain, label));
+                        DrivetrainMonitor dtm = DrivetrainMonitor.LoadFromXml(drivetrainEl, drivetrain, label);
+                        DrivetrainMonitor.Add(dtm);
+                        if (dtm != null) drivetrainCount++;
 
                         XmlElement statsEl = (XmlElement)drivetrainEl.SelectSingleNode("Statistics");
                         if (statsEl != null)
-                            DrivetrainStatisticsCollector.Add(
-                                DrivetrainStatisticsCollector.LoadFromXml(statsEl, drivetrain, label));
+                        {
+                            DrivetrainStatisticsCollector stats = DrivetrainStatisticsCollector.LoadFromXml(statsEl, drivetrain, label);
+                            DrivetrainStatisticsCollector.Add(stats);
+                            if (stats != null) statisticsCount++;
+                        }
 
                         XmlElement tcEl = (XmlElement)drivetrainEl.SelectSingleNode("TorqueConverter");
                         if (tcEl != null)
-                            TorqueConverterSimulator.Add(
-                                TorqueConverterSimulator.XmlLoader.LoadFromXml(tcEl, drivetrain, label));
+                        {
+                            TorqueConverterSimulator tc = TorqueConverterSimulator.XmlLoader.LoadFromXml(tcEl, drivetrain, label);
+                            TorqueConverterSimulator.Add(tc);
+                            if (tc != null) torqueConvCount++;
+                        }
                     }
                     isContainer = true;
                 }
@@ -1278,7 +1292,9 @@ namespace MyMWCMod1
                 if (monitor != null) componentCount++;
             }
 
-            ModConsole.Log("MyMWCMod1: Loaded " + componentCount + " component monitors from " + xmlPath);
+            ModConsole.Log(string.Format(
+                "MyMWCMod1: Loaded {0} component, {1} drivetrain, {2} statistics, {3} torque-converter, {4} pivot entries from {5}",
+                componentCount, drivetrainCount, statisticsCount, torqueConvCount, pivotCount, xmlPath));
         }
 
         private void WriteDefaultXml(string path)
