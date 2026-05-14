@@ -471,12 +471,7 @@ namespace MyMWCMod1
 
             private System.Reflection.FieldInfo ResolveField(string id)
             {
-                System.Reflection.FieldInfo fi = Drivetrain.GetType().GetField(
-                    id,
-                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-                if (fi == null)
-                    ModConsole.Error("MyMWCMod1: field '" + id + "' not found on Drivetrain.");
-                return fi;
+                return ResolveDrivetrainField(Drivetrain, id, "<Setting id='" + id + "'>", includeNonPublic: false);
             }
 
             private void ApplySliderSetting(XmlElement s, string id)
@@ -612,16 +607,9 @@ namespace MyMWCMod1
                     if (child.NodeType != XmlNodeType.Element) continue;
                     XmlElement statEl   = (XmlElement)child;
                     string     fieldName = statEl.GetAttribute("field");
-                    System.Reflection.FieldInfo fi = drivetrain.GetType().GetField(
-                        fieldName,
-                        System.Reflection.BindingFlags.Public   |
-                        System.Reflection.BindingFlags.NonPublic |
-                        System.Reflection.BindingFlags.Instance);
-                    if (fi == null)
-                    {
-                        ModConsole.Error("MyMWCMod1: <Statistics> field '" + fieldName + "' not found on Drivetrain for '" + goName + "' — skipped.");
-                        continue;
-                    }
+                    System.Reflection.FieldInfo fi = ResolveDrivetrainField(
+                        drivetrain, fieldName, "<Statistics> for '" + goName + "'", includeNonPublic: true);
+                    if (fi == null) continue;
                     fieldList.Add(fi);
                     nameList.Add(fieldName);
                     if (!string.IsNullOrEmpty(statEl.GetAttribute("live")))
@@ -950,13 +938,8 @@ namespace MyMWCMod1
 
                 public static System.Reflection.FieldInfo ResolveField(Drivetrain drivetrain, string name, string goName)
                 {
-                    var bf = System.Reflection.BindingFlags.Public   |
-                             System.Reflection.BindingFlags.NonPublic |
-                             System.Reflection.BindingFlags.Instance;
-                    System.Reflection.FieldInfo fi = drivetrain.GetType().GetField(name, bf);
-                    if (fi == null)
-                        ModConsole.Error("MyMWCMod1: <TorqueConverter> for '" + goName + "' could not resolve field '" + name + "'.");
-                    return fi;
+                    return ResolveDrivetrainField(
+                        drivetrain, name, "<TorqueConverter> for '" + goName + "'", includeNonPublic: true);
                 }
             } // XmlLoader
 
@@ -1168,6 +1151,17 @@ namespace MyMWCMod1
                 path = t.name + "/" + path;
             }
             return path;
+        }
+
+        private static System.Reflection.FieldInfo ResolveDrivetrainField(
+            Drivetrain drivetrain, string name, string context, bool includeNonPublic)
+        {
+            var bf = System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance;
+            if (includeNonPublic) bf |= System.Reflection.BindingFlags.NonPublic;
+            System.Reflection.FieldInfo fi = drivetrain.GetType().GetField(name, bf);
+            if (fi == null)
+                ModConsole.Error("MyMWCMod1: " + context + " could not resolve Drivetrain field '" + name + "'.");
+            return fi;
         }
 
         private SettingsKeybind _pivotResetKey;
