@@ -857,6 +857,7 @@ namespace MyMWCMod1
                 {
                     float rpmStall;
                     wStall = 0f;
+                    rStall = 0f;
                     if (!XmlAttr.TryFloat(el, "RPMStall", out rpmStall) ||
                         !XmlAttr.TryFloat(el, "rStall",   out rStall))
                     {
